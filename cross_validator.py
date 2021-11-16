@@ -127,22 +127,14 @@ taking more than one timestep would mean taking a 3D array, but they can be resh
 reshape using: 
 array.reshape(-1, input_data.shape[2])
 this preserves the ip_cols, but stuff everything else together in the first dimension.
-'''
 
-'''
-2. 
-
+----------------------------------------------------------------------------------------------------------------
 all_data is a variable that has both input and outputs side by side in a 3D array of shape:
 n_pids * n_timesteps * (nip + nop)
 
 will make it easier to stack across timesteps (using np.vstack) and then splitting off the ip_cols and op_cols
 
-'''
-
-# timesteps_per_second = [i for i in range(n_timesteps) if i % 10 == 0]
-# window_iter = len(timesteps_per_second)
-
-'''
+----------------------------------------------------------------------------------------------------------------
 for calculating num data points in all windows and plotting graph
 
 for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
@@ -161,49 +153,54 @@ plt.ylabel('number of data points')
 plt.plot(windows, lens)
 '''
 
-
+# processing the data to fit in 'data' variable
+# each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
+classifiers = ['RandomForest']
+window_iter = 20
 modes = ['left', 'right', 'avg', 'all']
-# mode = 'right'
 
+data = {i: None for i in range(1, window_iter)}
+lens = []
+for window_size in tqdm(range(1, window_iter), desc='data processing'):
+    mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
+
+    window_data = np.vstack(all_data[:, 0:window_size * 10, :])
+    full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
+    window_data = window_data[full_data_points]
+
+    lens.append(len(window_data))
+    print('data points that are not all zeros:', len(window_data))
+    mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
+    mode_data['x']['left'] = window_x_all[:, :3]  # left x
+    mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
+    mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
+
+    mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
+    mode_data['y']['left'] = window_y_all[:, :2]  # left y
+    mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
+    mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
+
+    data[window_size] = mode_data
+
+
+# making classifications on each mode one by one, on the classifiers that are mentioned, across windows
 for mode in modes:
-    # classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
-    classifiers = ['RandomForest']
-    window_iter = 20
-
     mean_errors = []
     windows = []
-    lens = []
 
     for clf in classifiers:
         for window_size in tqdm(range(1, window_iter), desc=mode):
-
-            mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
-
             windows.append(window_size)
+
             window_data = np.vstack(all_data[:, 0:window_size * 10, :])
             full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
             window_data = window_data[full_data_points]
 
-            lens.append(len(window_data))
-            print('data points that are not all zeros:', len(window_data))
-            mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
-            mode_data['x']['left'] = window_x_all[:, :3]  # left x
-            mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
-            mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
+            window_x = data[window_size]['x'][mode]
+            window_y = data[window_size]['y'][mode]
 
-            mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
-            mode_data['y']['left'] = window_y_all[:, :2]  # left y
-            mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
-            mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
-
-            # model = GradientBoostingRegressor(random_state=0)
-            # model = MultiOutputRegressor(model)
-
-            window_x = mode_data['x'][mode]
-            window_y = mode_data['y'][mode]
             model = ClassifiersFactory().get_model(clf)
             chain = RegressorChain(base_estimator=model)
-
             cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
             n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
                                                    cv=cv, n_jobs=n_jobs))
