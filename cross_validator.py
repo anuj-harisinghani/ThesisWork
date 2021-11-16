@@ -12,13 +12,21 @@ from sklearn.multioutput import MultiOutputRegressor, RegressorChain
 
 warnings.filterwarnings("ignore")
 
-processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
-baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
-eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
-videos_path = '/home/anuj/Documents/CANARY_Baseline/video'
-diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+dataset = 'Baseline'
 graph_path = os.path.join('graphs')
+
+if os.name == 'nt':
+    baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
+    eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
+    diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
+    data_saving_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/'
+
+elif os.name == 'posix':
+    processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
+    baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
+    eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
+    diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
 
 # get valid pids from meta_data based on outlier or not
 meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
@@ -155,41 +163,44 @@ plt.plot(windows, lens)
 '''
 
 classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
-clf = 'RandomForest'
+# clf = 'RandomForest'
 window_iter = 3
 
-for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
-    windows.append(window_size)
-    # window_size = 2  # hyperparameter, defines number of seconds to take in a window starting from 0
+for clf in classifiers:
+    for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
+        windows.append(window_size)
+        # window_size = 2  # hyperparameter, defines number of seconds to take in a window starting from 0
 
-    window_data = np.vstack(all_data[:, 0:window_size * 10, :])
-    full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
-    window_data = window_data[full_data_points]
+        window_data = np.vstack(all_data[:, 0:window_size * 10, :])
+        full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
+        window_data = window_data[full_data_points]
 
-    lens.append(len(window_data))
-    print('data points that are not all zeros:', len(window_data))
-    window_x = window_data[:, :nip]  # all x
-    window_x_left = window_x[:, :3]  # left x
-    window_x_right = window_x[:, 3:-2]  # right x
-    window_x_avg = window_x[:, -2:]  # avg x
+        lens.append(len(window_data))
+        print('data points that are not all zeros:', len(window_data))
+        window_x = window_data[:, :nip]  # all x
+        window_x_left = window_x[:, :3]  # left x
+        window_x_right = window_x[:, 3:-2]  # right x
+        window_x_avg = window_x[:, -2:]  # avg x
 
-    window_y = window_data[:, nip:]  # all y
-    window_y_left = window_y[:, :2]  # left y
-    window_y_right = window_y[:, 2:4]  # right y
-    window_y_avg = window_y[:, -2:]  # avg y
+        window_y = window_data[:, nip:]  # all y
+        window_y_left = window_y[:, :2]  # left y
+        window_y_right = window_y[:, 2:4]  # right y
+        window_y_avg = window_y[:, -2:]  # avg y
 
-    # model = GradientBoostingRegressor(random_state=0)
-    # model = MultiOutputRegressor(model)
-    model = ClassifiersFactory().get_model(clf)
-    chain = RegressorChain(base_estimator=model)
+        # model = GradientBoostingRegressor(random_state=0)
+        # model = MultiOutputRegressor(model)
+        model = ClassifiersFactory().get_model(clf)
+        chain = RegressorChain(base_estimator=model)
 
-    cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
-    n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
-                                           cv=cv, n_jobs=-1))
-    mean_errors.append(np.mean(n_errors))
+        cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
+        n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
+                                               cv=cv, n_jobs=-1))
+        mean_errors.append(np.mean(n_errors))
 
-plt.title(clf + ' - RegressorChain')
-plt.xlabel('window size')
-plt.ylabel('mean error')
-plt.plot(windows, mean_errors)
-plt.savefig(os.path.join(graph_path, '{}_{}.png'.format(clf, window_iter)))
+    plt.clf()
+    plt.title(clf + ' - RegressorChain')
+    plt.xlabel('window size')
+    plt.ylabel('mean error')
+    plt.plot(windows, mean_errors)
+    plt.savefig(os.path.join(graph_path, '{}_{}.png'.format(clf, window_iter)))
+    plt.close()
