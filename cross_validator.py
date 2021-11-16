@@ -139,10 +139,6 @@ will make it easier to stack across timesteps (using np.vstack) and then splitti
 # timesteps_per_second = [i for i in range(n_timesteps) if i % 10 == 0]
 # window_iter = len(timesteps_per_second)
 
-mean_errors = []
-windows = []
-lens = []
-
 '''
 for calculating num data points in all windows and plotting graph
 
@@ -162,45 +158,55 @@ plt.ylabel('number of data points')
 plt.plot(windows, lens)
 '''
 
-classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
-# clf = 'RandomForest'
+# classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
+classifiers = ['GradBoost']
 window_iter = 20
+
+mean_errors = []
+windows = []
+lens = []
+
+modes = ['left', 'right', 'avg', 'all']
+mode = 'right'
+mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
 
 for clf in classifiers:
     for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
-        windows.append(window_size)
         # window_size = 2  # hyperparameter, defines number of seconds to take in a window starting from 0
-
+        windows.append(window_size)
         window_data = np.vstack(all_data[:, 0:window_size * 10, :])
         full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
         window_data = window_data[full_data_points]
 
         lens.append(len(window_data))
         print('data points that are not all zeros:', len(window_data))
-        window_x = window_data[:, :nip]  # all x
-        window_x_left = window_x[:, :3]  # left x
-        window_x_right = window_x[:, 3:-2]  # right x
-        window_x_avg = window_x[:, -2:]  # avg x
+        mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
+        mode_data['x']['left'] = window_x_all[:, :3]  # left x
+        mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
+        mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
 
-        window_y = window_data[:, nip:]  # all y
-        window_y_left = window_y[:, :2]  # left y
-        window_y_right = window_y[:, 2:4]  # right y
-        window_y_avg = window_y[:, -2:]  # avg y
+        mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
+        mode_data['y']['left'] = window_y_all[:, :2]  # left y
+        mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
+        mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
 
         # model = GradientBoostingRegressor(random_state=0)
         # model = MultiOutputRegressor(model)
+
+        window_x = mode_data['x'][mode]
+        window_y = mode_data['y'][mode]
         model = ClassifiersFactory().get_model(clf)
         chain = RegressorChain(base_estimator=model)
 
         cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
         n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
-                                               cv=cv, n_jobs=-1))
+                                               cv=cv, n_jobs=2))
         mean_errors.append(np.mean(n_errors))
 
     plt.clf()
-    plt.title(clf + ' - RegressorChain')
+    plt.title('{} {} {}'.format(clf, window_iter, mode))
     plt.xlabel('window size')
     plt.ylabel('mean error')
     plt.plot(windows, mean_errors)
-    plt.savefig(os.path.join(graph_path, '{}_{}.png'.format(clf, window_iter)))
+    plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
     plt.close()
