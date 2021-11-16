@@ -167,7 +167,7 @@ modes = ['left', 'right', 'avg', 'all']
 
 for mode in modes:
     # classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
-    classifiers = ['GradBoost']
+    classifiers = ['RandomForest']
     window_iter = 20
 
     mean_errors = []
@@ -175,7 +175,7 @@ for mode in modes:
     lens = []
 
     for clf in classifiers:
-        for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
+        for window_size in tqdm(range(1, window_iter), desc=mode):
 
             mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
 
