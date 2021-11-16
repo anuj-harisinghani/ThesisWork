@@ -14,7 +14,7 @@ class ClassifiersFactory:
         self.__classifiers = {
             "RandomForest": RandomForestRegressor(),
             "DecisionTree": DecisionTreeRegressor(),
-            "LogReg": LogisticRegression(),
+            "LogReg": LogisticRegression(max_iter=100000),
             "KNN": KNeighborsRegressor(),
             "SVM": LinearSVR(),
             "GradBoost": GradientBoostingRegressor()

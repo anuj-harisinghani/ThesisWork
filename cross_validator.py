@@ -164,7 +164,7 @@ plt.plot(windows, lens)
 
 classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
 # clf = 'RandomForest'
-window_iter = 3
+window_iter = 20
 
 for clf in classifiers:
     for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
