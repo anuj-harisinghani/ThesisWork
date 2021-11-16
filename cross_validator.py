@@ -18,6 +18,7 @@ eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
 videos_path = '/home/anuj/Documents/CANARY_Baseline/video'
 diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
 data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+graph_path = os.path.join('graphs')
 
 # get valid pids from meta_data based on outlier or not
 meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
@@ -191,4 +192,4 @@ plt.title(clf + ' - RegressorChain')
 plt.xlabel('window size')
 plt.ylabel('mean error')
 plt.plot(windows, mean_errors)
-plt.savefig(os.path.join(data_saving_path, '{}_{}.png'.format(clf, window_iter)))
+plt.savefig(os.path.join(graph_path, '{}_{}.png'.format(clf, window_iter)))
