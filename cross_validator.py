@@ -1,3 +1,5 @@
+from ModelHandler import ClassifiersFactory
+
 import os
 import numpy as np
 import pandas as pd
@@ -6,7 +8,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 from sklearn.model_selection import RepeatedKFold, cross_val_score, train_test_split
-from sklearn.multioutput import MultiOutputRegressor
+from sklearn.multioutput import MultiOutputRegressor, RegressorChain
 
 warnings.filterwarnings("ignore")
 
@@ -151,7 +153,10 @@ plt.ylabel('number of data points')
 plt.plot(windows, lens)
 '''
 
-window_iter = 20
+classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
+clf = 'RandomForest'
+window_iter = 3
+
 for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
     windows.append(window_size)
     # window_size = 2  # hyperparameter, defines number of seconds to take in a window starting from 0
@@ -174,7 +179,7 @@ for window_size in tqdm(range(1, window_iter), desc='running through all windows
 
     # model = GradientBoostingRegressor(random_state=0)
     # model = MultiOutputRegressor(model)
-    model = RandomForestRegressor()
+    model = ClassifiersFactory().get_model(clf)
     chain = RegressorChain(base_estimator=model)
 
     cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
@@ -182,8 +187,8 @@ for window_size in tqdm(range(1, window_iter), desc='running through all windows
                                            cv=cv, n_jobs=-1))
     mean_errors.append(np.mean(n_errors))
 
-plt.title('RandomForestRegressor - RegressorChain')
+plt.title(clf + ' - RegressorChain')
 plt.xlabel('window size')
 plt.ylabel('mean error')
 plt.plot(windows, mean_errors)
-plt.savefig(os.path.join(data_saving_path, ))
+plt.savefig(os.path.join(data_saving_path, '{}_{}.png'.format(clf, window_iter)))
