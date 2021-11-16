@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore")
 
 dataset = 'Baseline'
 graph_path = os.path.join('graphs')
+error_path = os.path.join('errors')
 
 if os.name == 'nt':
     baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
@@ -158,55 +159,61 @@ plt.ylabel('number of data points')
 plt.plot(windows, lens)
 '''
 
-# classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
-classifiers = ['GradBoost']
-window_iter = 20
-
-mean_errors = []
-windows = []
-lens = []
 
 modes = ['left', 'right', 'avg', 'all']
-mode = 'right'
-mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
+# mode = 'right'
 
-for clf in classifiers:
-    for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
-        # window_size = 2  # hyperparameter, defines number of seconds to take in a window starting from 0
-        windows.append(window_size)
-        window_data = np.vstack(all_data[:, 0:window_size * 10, :])
-        full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
-        window_data = window_data[full_data_points]
+for mode in modes:
+    # classifiers = ["RandomForest", "DecisionTree", "LogReg", "KNN", "SVM", "GradBoost"]
+    classifiers = ['GradBoost']
+    window_iter = 20
 
-        lens.append(len(window_data))
-        print('data points that are not all zeros:', len(window_data))
-        mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
-        mode_data['x']['left'] = window_x_all[:, :3]  # left x
-        mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
-        mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
+    mean_errors = []
+    windows = []
+    lens = []
 
-        mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
-        mode_data['y']['left'] = window_y_all[:, :2]  # left y
-        mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
-        mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
+    for clf in classifiers:
+        for window_size in tqdm(range(1, window_iter), desc='running through all windows'):
 
-        # model = GradientBoostingRegressor(random_state=0)
-        # model = MultiOutputRegressor(model)
+            mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
 
-        window_x = mode_data['x'][mode]
-        window_y = mode_data['y'][mode]
-        model = ClassifiersFactory().get_model(clf)
-        chain = RegressorChain(base_estimator=model)
+            windows.append(window_size)
+            window_data = np.vstack(all_data[:, 0:window_size * 10, :])
+            full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
+            window_data = window_data[full_data_points]
 
-        cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
-        n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
-                                               cv=cv, n_jobs=2))
-        mean_errors.append(np.mean(n_errors))
+            lens.append(len(window_data))
+            print('data points that are not all zeros:', len(window_data))
+            mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
+            mode_data['x']['left'] = window_x_all[:, :3]  # left x
+            mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
+            mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
 
-    plt.clf()
-    plt.title('{} {} {}'.format(clf, window_iter, mode))
-    plt.xlabel('window size')
-    plt.ylabel('mean error')
-    plt.plot(windows, mean_errors)
-    plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
-    plt.close()
+            mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
+            mode_data['y']['left'] = window_y_all[:, :2]  # left y
+            mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
+            mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
+
+            # model = GradientBoostingRegressor(random_state=0)
+            # model = MultiOutputRegressor(model)
+
+            window_x = mode_data['x'][mode]
+            window_y = mode_data['y'][mode]
+            model = ClassifiersFactory().get_model(clf)
+            chain = RegressorChain(base_estimator=model)
+
+            cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
+            n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
+                                                   cv=cv, n_jobs=2))
+            mean_errors.append(np.mean(n_errors))
+
+        plt.clf()
+        plt.title('{} {} {}'.format(clf, window_iter, mode))
+        plt.xlabel('window size')
+        plt.ylabel('mean error')
+        plt.plot(windows, mean_errors)
+        plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+        plt.close()
+
+        error_filename = os.path.join(error_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
+        pd.DataFrame(mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
