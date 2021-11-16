@@ -21,6 +21,7 @@ if os.name == 'nt':
     eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
     data_saving_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/'
+    n_jobs = 2
 
 elif os.name == 'posix':
     processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
@@ -28,6 +29,7 @@ elif os.name == 'posix':
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
     data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+    n_jobs = -1
 
 # get valid pids from meta_data based on outlier or not
 meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
@@ -204,7 +206,7 @@ for mode in modes:
 
             cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
             n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
-                                                   cv=cv, n_jobs=2))
+                                                   cv=cv, n_jobs=n_jobs))
             mean_errors.append(np.mean(n_errors))
 
         plt.clf()
