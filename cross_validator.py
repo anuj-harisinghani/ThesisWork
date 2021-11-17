@@ -15,6 +15,8 @@ warnings.filterwarnings("ignore")
 dataset = 'Baseline'
 graph_path = os.path.join('graphs')
 error_path = os.path.join('errors')
+data_saving_path = None
+n_jobs = None
 
 if os.name == 'nt':
     baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
@@ -157,7 +159,7 @@ plt.plot(windows, lens)
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['RandomForest']
 window_iter = 20
-modes = ['left', 'right', 'avg', 'all']
+modes = ['left', 'right', 'avg_vector', 'avg_angle', 'all']
 
 data = {i: None for i in range(1, window_iter)}
 lens = []
@@ -171,14 +173,15 @@ for window_size in tqdm(range(1, window_iter), desc='data processing'):
     lens.append(len(window_data))
     print('data points that are not all zeros:', len(window_data))
     mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
-    mode_data['x']['left'] = window_x_all[:, :3]  # left x
-    mode_data['x']['right'] = window_x_all[:, 3:-2]  # right x
-    mode_data['x']['avg'] = window_x_all[:, -2:]  # avg x
+    mode_data['x']['left'] = window_x_left = window_x_all[:, :3]  # left x
+    mode_data['x']['right'] = window_x_right = window_x_all[:, 3:-2]  # right x
+    mode_data['x']['avg_angle'] = window_x_all[:, -2:]  # avg angle as reported by OpenFace
+    mode_data['x']['avg_vector'] = (window_x_left + window_x_right)/2  # manually averaged gaze vectors
 
     mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
     mode_data['y']['left'] = window_y_all[:, :2]  # left y
     mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
-    mode_data['y']['avg'] = window_y_all[:, -2:]  # avg y
+    mode_data['y']['avg_angle'] = mode_data['y']['avg_vector'] = window_y_all[:, -2:]  # avg y for angles and vectors
 
     data[window_size] = mode_data
 

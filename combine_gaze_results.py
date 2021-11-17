@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import moviepy.editor
+import matplotlib.pyplot as plt
 
 processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
 baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
@@ -408,7 +409,6 @@ u2 = lens.mean() + 2 * lens.std()
 new_lens = lens[(lens < u2) & (lens > l2)]
 outliers = lens[(lens > u2) | (lens < l2)]
 
-import matplotlib.pyplot as plt
 plt.xlabel('num data points')
 plt.ylabel('num participants')
 # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
@@ -417,8 +417,8 @@ plt.hist(lens[(lens < u2) & (lens > l2)], bins=50, range=[0, max(lens)])  # or p
 outlier_pids = md.iloc[list(outliers.index)]['PID']
 outlier_or_not = np.zeros_like(lens, dtype=bool)
 
-for id in outliers.index:
-    outlier_or_not[id] = True
+for d in outliers.index:
+    outlier_or_not[d] = True
 
 meta_data = np.array(md.iloc[:, 1:])
 md2 = np.append(meta_data, outlier_or_not.reshape(len(outlier_or_not), 1), axis=1)
