@@ -1,6 +1,7 @@
 from ModelHandler import ClassifiersFactory
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -157,9 +158,9 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['RandomForest']
+classifiers = [sys.argv[1]]  # ['RandomForest']
 window_iter = 20
-modes = ['avg_vector']  # ['left', 'right', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
+modes = ['avg_vector']  # ['left', 'right', 'avg_vector', 'all']  # don't use avg_angle, it's not
 
 data = {i: None for i in range(1, window_iter)}
 lens = []
