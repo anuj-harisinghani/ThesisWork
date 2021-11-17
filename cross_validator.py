@@ -159,7 +159,7 @@ plt.plot(windows, lens)
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['RandomForest']
 window_iter = 20
-modes = ['left', 'right', 'avg_vector', 'avg_angle', 'all']
+modes = ['avg_vector']  # ['left', 'right', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
 
 data = {i: None for i in range(1, window_iter)}
 lens = []
@@ -179,9 +179,10 @@ for window_size in tqdm(range(1, window_iter), desc='data processing'):
     mode_data['x']['avg_vector'] = (window_x_left + window_x_right)/2  # manually averaged gaze vectors
 
     mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
-    mode_data['y']['left'] = window_y_all[:, :2]  # left y
-    mode_data['y']['right'] = window_y_all[:, 2:4]  # right y
-    mode_data['y']['avg_angle'] = mode_data['y']['avg_vector'] = window_y_all[:, -2:]  # avg y for angles and vectors
+    mode_data['y']['left'] = window_y_left = window_y_all[:, :2]  # left y
+    mode_data['y']['right'] = window_y_right = window_y_all[:, 2:4]  # right y
+    mode_data['y']['avg_angle'] = window_y_all[:, -2:]  # avg y for angles and vectors
+    mode_data['y']['avg_vector'] = (window_y_left + window_y_right)/2
 
     data[window_size] = mode_data
 
