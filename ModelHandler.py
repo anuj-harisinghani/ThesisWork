@@ -1,5 +1,5 @@
 from sklearn.linear_model import LogisticRegression, LinearRegression
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import LinearSVR
@@ -17,7 +17,10 @@ class ClassifiersFactory:
             "LogReg": LogisticRegression(max_iter=100000),
             "KNN": KNeighborsRegressor(),
             "SVM": LinearSVR(),
-            "GradBoost": GradientBoostingRegressor()
+            "GradBoost": GradientBoostingRegressor(),
+            "LinearReg": LinearRegression(),
+            "AdaBoost": AdaBoostRegressor(),
+            "Bagging": BaggingRegressor()
         }
 
     def get_models(self, classifiers: list) -> list:
