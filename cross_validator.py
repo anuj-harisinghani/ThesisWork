@@ -6,9 +6,11 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import warnings
+import random
 
-from sklearn.model_selection import RepeatedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import RepeatedKFold, GroupKFold, cross_val_score, train_test_split, cross_validate
 from sklearn.multioutput import MultiOutputRegressor, RegressorChain
+from sklearn.metrics import accuracy_score, mean_absolute_error
 
 warnings.filterwarnings("ignore")
 
@@ -94,6 +96,15 @@ all_data = []
 nip = len(ip_cols) - 1
 nop = len(op_cols) - 1
 
+# creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
+random_seed = 0
+nfolds = 10
+random.Random(random_seed).shuffle(valid_pids)
+test_splits = np.array_split(valid_pids, nfolds)
+train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
+
+pid_all_data = {}
+
 for pid in valid_pids:
     pid_path = os.path.join(data_saving_path, pid)
     # Unnamed column crept in when making these files, remove them by using [:, 1:]
@@ -115,6 +126,7 @@ for pid in valid_pids:
     input_data.append(t_x)
     output_data.append(t_y)
     all_data.append(np.append(t_x, t_y, axis=1))
+    pid_all_data[pid] = np.append(t_x, t_y, axis=1)
 
 input_data = np.array(input_data)
 output_data = np.array(output_data)
@@ -159,64 +171,131 @@ plt.plot(windows, lens)
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['RandomForest']
 window_iter = 20
-modes = ['avg_vector']  # ['left', 'right', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
+modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
 
-data = {i: None for i in range(1, window_iter)}
-lens = []
-for window_size in tqdm(range(1, window_iter), desc='data processing'):
-    mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
+for idx in range(nfolds):
+    data = {'train': {i: None for i in range(1, window_iter)},
+            'test': {i: None for i in range(1, window_iter)},
+            'all': {i: None for i in range(1, window_iter)}}
+    # lens = []
 
-    window_data = np.vstack(all_data[:, 0:window_size * 10, :])
-    full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
-    window_data = window_data[full_data_points]
+    train_data = np.array([pid_all_data[p] for p in train_splits[idx]])
+    test_data = np.array([pid_all_data[p] for p in test_splits[idx]])
 
-    lens.append(len(window_data))
-    print('data points that are not all zeros:', len(window_data))
-    mode_data['x']['all'] = window_x_all = window_data[:, :nip]  # all x
-    mode_data['x']['left'] = window_x_left = window_x_all[:, :3]  # left x
-    mode_data['x']['right'] = window_x_right = window_x_all[:, 3:-2]  # right x
-    mode_data['x']['avg_angle'] = window_x_all[:, -2:]  # avg angle as reported by OpenFace
-    mode_data['x']['avg_vector'] = (window_x_left + window_x_right)/2  # manually averaged gaze vectors
+    for window_size in tqdm(range(1, window_iter), desc='data processing'):
+        # all
+        all_mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
 
-    mode_data['y']['all'] = window_y_all = window_data[:, nip:]  # all y
-    mode_data['y']['left'] = window_y_left = window_y_all[:, :2]  # left y
-    mode_data['y']['right'] = window_y_right = window_y_all[:, 2:4]  # right y
-    mode_data['y']['avg_angle'] = window_y_all[:, -2:]  # avg y for angles and vectors
-    mode_data['y']['avg_vector'] = (window_y_left + window_y_right)/2
+        all_window_data = np.vstack(all_data[:, 0:window_size * 10, :])
+        all_full_data_points = [i for i in range(len(all_window_data)) if all_window_data[i].any() != False]
+        all_window_data = all_window_data[all_full_data_points]
 
-    data[window_size] = mode_data
+        # lens.append(len(window_data))
+        print('all data points:', len(all_window_data))
+        all_mode_data['x']['all'] = all_window_x_all = all_window_data[:, :nip]  # all x
+        all_mode_data['x']['both_eyes'] = all_window_data[:, :6]
+        all_mode_data['x']['left'] = all_window_x_left = all_window_x_all[:, :3]  # left x
+        all_mode_data['x']['right'] = all_window_x_right = all_window_x_all[:, 3:-2]  # right x
+        all_mode_data['x']['avg_angle'] = all_window_x_all[:, -2:]  # avg angle as reported by OpenFace
+        all_mode_data['x']['avg_vector'] = (all_window_x_left + all_window_x_right) / 2  # manually averaged
+
+        all_mode_data['y']['all'] = all_window_y_all = all_window_data[:, nip:]  # all y
+        all_mode_data['y']['both_eyes'] = all_window_data[:, nip:-2]
+        all_mode_data['y']['left'] = all_window_y_left = all_window_y_all[:, :2]  # left y
+        all_mode_data['y']['right'] = all_window_y_right = all_window_y_all[:, 2:4]  # right y
+        all_mode_data['y']['avg_angle'] = all_window_y_all[:, -2:]  # avg y for angles and vectors
+        all_mode_data['y']['avg_vector'] = (all_window_y_left + all_window_y_right) / 2
+
+        data['all'][window_size] = all_mode_data
+
+        # train
+        train_mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
+
+        train_window_data = np.vstack(train_data[:, 0:window_size * 10, :])
+        train_full_data_points = [i for i in range(len(train_window_data)) if train_window_data[i].any() != False]
+        train_window_data = train_window_data[train_full_data_points]
+
+        # lens.append(len(window_data))
+        print('train data points:', len(train_window_data))
+        train_mode_data['x']['all'] = train_window_x_all = train_window_data[:, :nip]  # all x
+        train_mode_data['x']['both_eyes'] = train_window_data[:, :6]
+        train_mode_data['x']['left'] = train_window_x_left = train_window_x_all[:, :3]  # left x
+        train_mode_data['x']['right'] = train_window_x_right = train_window_x_all[:, 3:-2]  # right x
+        train_mode_data['x']['avg_angle'] = train_window_x_all[:, -2:]  # avg angle as reported by OpenFace
+        train_mode_data['x']['avg_vector'] = (train_window_x_left + train_window_x_right)/2  # manually averaged
+
+        train_mode_data['y']['all'] = train_window_y_all = train_window_data[:, nip:]  # all y
+        train_mode_data['y']['both_eyes'] = train_window_data[:, nip:-2]
+        train_mode_data['y']['left'] = train_window_y_left = train_window_y_all[:, :2]  # left y
+        train_mode_data['y']['right'] = train_window_y_right = train_window_y_all[:, 2:4]  # right y
+        train_mode_data['y']['avg_angle'] = train_window_y_all[:, -2:]  # avg y for angles and vectors
+        train_mode_data['y']['avg_vector'] = (train_window_y_left + train_window_y_right)/2
+
+        data['train'][window_size] = train_mode_data
+
+        # test
+        test_mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
+
+        test_window_data = np.vstack(test_data[:, 0:window_size * 10, :])
+        test_full_data_points = [i for i in range(len(test_window_data)) if test_window_data[i].any() != False]
+        test_window_data = test_window_data[test_full_data_points]
+
+        print('test data points:', len(test_window_data))
+        test_mode_data['x']['all'] = test_window_x_all = test_window_data[:, :nip]  # all x
+        test_mode_data['x']['both_eyes'] = test_window_data[:, :6]
+        test_mode_data['x']['left'] = test_window_x_left = test_window_x_all[:, :3]  # left x
+        test_mode_data['x']['right'] = test_window_x_right = test_window_x_all[:, 3:-2]  # right x
+        test_mode_data['x']['avg_angle'] = test_window_x_all[:, -2:]  # avg angle as reported by OpenFace
+        test_mode_data['x']['avg_vector'] = (test_window_x_left + test_window_x_right) / 2  # manually averaged
+
+        test_mode_data['y']['all'] = test_window_y_all = test_window_data[:, nip:]  # all y
+        test_mode_data['y']['both_eyes'] = test_window_data[:, nip:-2]
+        test_mode_data['y']['left'] = test_window_y_left = test_window_y_all[:, :2]  # left y
+        test_mode_data['y']['right'] = test_window_y_right = test_window_y_all[:, 2:4]  # right y
+        test_mode_data['y']['avg_angle'] = test_window_y_all[:, -2:]  # avg y for angles and vectors
+        test_mode_data['y']['avg_vector'] = (test_window_y_left + test_window_y_right) / 2
+
+        data['test'][window_size] = test_mode_data
+
+    # making classifications on each mode one by one, on the classifiers that are mentioned, across windows
+    for mode in modes:
+        train_mean_errors = []
+        windows = []
+
+        for clf in classifiers:
+            for window_size in tqdm(range(1, window_iter), desc=classifiers[0] + ' ' + mode):
+                windows.append(window_size)
+
+                train_window_x = data['train'][window_size]['x'][mode]
+                train_window_y = data['train'][window_size]['y'][mode]
+
+                test_window_x = data['test'][window_size]['x'][mode]
+                test_window_y = data['test'][window_size]['y'][mode]
+
+                window_x = data['all'][window_size]['x'][mode]
+                window_y = data['all'][window_size]['y'][mode]
+
+                model = ClassifiersFactory().get_model(clf)
+                chain = RegressorChain(base_estimator=model)
+                cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
+                # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
+                #                                            scoring='neg_mean_absolute_error',
+                #                                            cv=cv, n_jobs=n_jobs))
+                train_errors = cross_validate(chain, train_window_x, train_window_y,
+                                              scoring='neg_mean_absolute_error',
+                                              cv=cv, n_jobs=-1,
+                                              return_estimator=True, return_train_score=True)
+                train_mean_errors.append(np.mean(train_errors))
 
 
-# making classifications on each mode one by one, on the classifiers that are mentioned, across windows
-for mode in modes:
-    mean_errors = []
-    windows = []
+            plt.clf()
+            plt.title('{} {} {}'.format(clf, window_iter, mode))
+            plt.xlabel('window size')
+            plt.ylabel('mean error')
+            plt.plot(windows, train_mean_errors)
+            print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
+            plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+            plt.close()
 
-    for clf in classifiers:
-        for window_size in tqdm(range(1, window_iter), desc=mode):
-            windows.append(window_size)
-
-            window_data = np.vstack(all_data[:, 0:window_size * 10, :])
-            full_data_points = [i for i in range(len(window_data)) if window_data[i].any() != False]
-            window_data = window_data[full_data_points]
-
-            window_x = data[window_size]['x'][mode]
-            window_y = data[window_size]['y'][mode]
-
-            model = ClassifiersFactory().get_model(clf)
-            chain = RegressorChain(base_estimator=model)
-            cv = RepeatedKFold(n_splits=10, n_repeats=1, random_state=0)
-            n_errors = np.absolute(cross_val_score(chain, window_x, window_y, scoring='neg_mean_absolute_error',
-                                                   cv=cv, n_jobs=n_jobs))
-            mean_errors.append(np.mean(n_errors))
-
-        plt.clf()
-        plt.title('{} {} {}'.format(clf, window_iter, mode))
-        plt.xlabel('window size')
-        plt.ylabel('mean error')
-        plt.plot(windows, mean_errors)
-        plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
-        plt.close()
-
-        error_filename = os.path.join(error_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
-        pd.DataFrame(mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
+            error_filename = os.path.join(error_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
+            pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
