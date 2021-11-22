@@ -15,8 +15,7 @@ from sklearn.metrics import accuracy_score, mean_absolute_error
 warnings.filterwarnings("ignore")
 
 dataset = 'Baseline'
-graph_path = os.path.join('graphs')
-error_path = os.path.join('errors')
+result_path = os.path.join('results')
 data_saving_path = None
 n_jobs = None
 
@@ -25,7 +24,7 @@ if os.name == 'nt':
     eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
     data_saving_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/'
-    n_jobs = 2
+    n_jobs = 6
 
 elif os.name == 'posix':
     processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
@@ -174,6 +173,10 @@ window_iter = 20
 modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
 
 for idx in range(nfolds):
+    fold_path = os.path.join(result_path, idx)
+    if not os.path.exists(fold_path):
+        os.mkdir(fold_path)
+
     data = {'train': {i: None for i in range(1, window_iter)},
             'test': {i: None for i in range(1, window_iter)},
             'all': {i: None for i in range(1, window_iter)}}
@@ -191,7 +194,6 @@ for idx in range(nfolds):
         all_window_data = all_window_data[all_full_data_points]
 
         # lens.append(len(window_data))
-        print('all data points:', len(all_window_data))
         all_mode_data['x']['all'] = all_window_x_all = all_window_data[:, :nip]  # all x
         all_mode_data['x']['both_eyes'] = all_window_data[:, :6]
         all_mode_data['x']['left'] = all_window_x_left = all_window_x_all[:, :3]  # left x
@@ -216,7 +218,7 @@ for idx in range(nfolds):
         train_window_data = train_window_data[train_full_data_points]
 
         # lens.append(len(window_data))
-        print('train data points:', len(train_window_data))
+        # print('train data points:', len(train_window_data))
         train_mode_data['x']['all'] = train_window_x_all = train_window_data[:, :nip]  # all x
         train_mode_data['x']['both_eyes'] = train_window_data[:, :6]
         train_mode_data['x']['left'] = train_window_x_left = train_window_x_all[:, :3]  # left x
@@ -240,7 +242,7 @@ for idx in range(nfolds):
         test_full_data_points = [i for i in range(len(test_window_data)) if test_window_data[i].any() != False]
         test_window_data = test_window_data[test_full_data_points]
 
-        print('test data points:', len(test_window_data))
+        # print('test data points:', len(test_window_data))
         test_mode_data['x']['all'] = test_window_x_all = test_window_data[:, :nip]  # all x
         test_mode_data['x']['both_eyes'] = test_window_data[:, :6]
         test_mode_data['x']['left'] = test_window_x_left = test_window_x_all[:, :3]  # left x
@@ -277,16 +279,19 @@ for idx in range(nfolds):
 
                 model = ClassifiersFactory().get_model(clf)
                 chain = RegressorChain(base_estimator=model)
-                cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
+                # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
                 # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
                 #                                            scoring='neg_mean_absolute_error',
                 #                                            cv=cv, n_jobs=n_jobs))
-                train_errors = cross_validate(chain, train_window_x, train_window_y,
-                                              scoring='neg_mean_absolute_error',
-                                              cv=cv, n_jobs=-1,
-                                              return_estimator=True, return_train_score=True)
-                train_mean_errors.append(np.mean(train_errors))
+                # train_errors = cross_validate(chain, train_window_x, train_window_y,
+                #                               scoring='neg_mean_absolute_error',
+                #                               cv=cv, n_jobs=-1,
+                #                               return_estimator=True, return_train_score=True)
 
+                chain = chain.fit(train_window_x, train_window_y)
+                window_preds = chain.predict(test_window_x)
+                error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
+                train_mean_errors.append(np.mean(error))
 
             plt.clf()
             plt.title('{} {} {}'.format(clf, window_iter, mode))
@@ -294,8 +299,8 @@ for idx in range(nfolds):
             plt.ylabel('mean error')
             plt.plot(windows, train_mean_errors)
             print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
-            plt.savefig(os.path.join(graph_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+            plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
             plt.close()
 
-            error_filename = os.path.join(error_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
+            error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
             pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
