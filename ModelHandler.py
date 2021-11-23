@@ -3,6 +3,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, A
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import LinearSVR
+from sklearn.dummy import DummyRegressor
 
 
 import warnings
@@ -20,7 +21,8 @@ class ClassifiersFactory:
             "GradBoost": GradientBoostingRegressor(),
             "LinearReg": LinearRegression(),
             "AdaBoost": AdaBoostRegressor(),
-            "Bagging": BaggingRegressor()
+            "Bagging": BaggingRegressor(),
+            "Dummy": DummyRegressor()
         }
 
     def get_models(self, classifiers: list) -> list:
