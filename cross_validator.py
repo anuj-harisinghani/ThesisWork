@@ -170,10 +170,11 @@ plt.plot(windows, lens)
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['RandomForest']
 window_iter = 20
-modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
+# modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
+modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all']
 
 for idx in range(nfolds):
-    fold_path = os.path.join(result_path, idx)
+    fold_path = os.path.join(result_path, str(idx))
     if not os.path.exists(fold_path):
         os.mkdir(fold_path)
 
@@ -184,6 +185,9 @@ for idx in range(nfolds):
 
     train_data = np.array([pid_all_data[p] for p in train_splits[idx]])
     test_data = np.array([pid_all_data[p] for p in test_splits[idx]])
+
+    pd.DataFrame(train_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'train_pids.csv'))
+    pd.DataFrame(test_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
 
     for window_size in tqdm(range(1, window_iter), desc='data processing'):
         # all
