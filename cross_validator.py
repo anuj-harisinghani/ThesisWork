@@ -1,5 +1,5 @@
 from ModelHandler import ClassifiersFactory
-from average_results import average_results
+from average_results import average_results, plot_all_averaged_models
 
 import os
 import numpy as np
@@ -170,8 +170,9 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['SVM', 'KNN', 'DecisionTree', 'AdaBoost', 'LogReg', 'Bagging', 'Dummy', 'LinearReg']
-window_iter = 20
+classifiers = ['GradBoost', 'SVM', 'KNN', 'DecisionTree', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
+# classifiers = ['Bagging', 'Dummy', 'LinearReg']
+window_iter = 80
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
 modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all']
 
@@ -321,10 +322,16 @@ def try_multi(idx, mode, clf):
     return 0
 
 
+# for running the code
 for clf in classifiers:
     for m in modes:
         cpu_count = os.cpu_count()
         pool = Pool(processes=cpu_count)
         cv = [pool.apply_async(try_multi, args=(seed, m, clf)) for seed in range(nfolds)]
         op = [p.get() for p in cv]
-        average_results(classifiers[0], window_iter, m)
+        average_results(clf, window_iter, m)
+
+# for creating plots for averaged results
+for m in modes:
+    plot_all_averaged_models(window_iter, m)
+
