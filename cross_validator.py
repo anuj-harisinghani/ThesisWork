@@ -7,6 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import warnings
 import random
+from multiprocessing import Pool
 
 from sklearn.model_selection import RepeatedKFold, GroupKFold, cross_val_score, train_test_split, cross_validate
 from sklearn.multioutput import MultiOutputRegressor, RegressorChain
@@ -168,28 +169,26 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['RandomForest']
+classifiers = ['GradBoost']
 window_iter = 20
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
 modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all']
 
-for idx in range(nfolds):
-    fold_path = os.path.join(result_path, str(idx))
-    if not os.path.exists(fold_path):
-        os.mkdir(fold_path)
+output_clfs = [os.path.join(result_path, clf) for clf in classifiers]
+for oc in output_clfs:
+    if not os.path.exists(oc):
+        os.mkdir(oc)
 
+
+def try_multi(idx, mode):
     data = {'train': {i: None for i in range(1, window_iter)},
             'test': {i: None for i in range(1, window_iter)},
             'all': {i: None for i in range(1, window_iter)}}
-    # lens = []
 
     train_data = np.array([pid_all_data[p] for p in train_splits[idx]])
     test_data = np.array([pid_all_data[p] for p in test_splits[idx]])
 
-    pd.DataFrame(train_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'train_pids.csv'))
-    pd.DataFrame(test_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
-
-    for window_size in tqdm(range(1, window_iter), desc='data processing'):
+    for window_size in tqdm(range(1, window_iter), desc=str(idx) + ' data processing'):
         # all
         all_mode_data = {'x': {i: None for i in modes}, 'y': {i: None for i in modes}}
 
@@ -228,14 +227,14 @@ for idx in range(nfolds):
         train_mode_data['x']['left'] = train_window_x_left = train_window_x_all[:, :3]  # left x
         train_mode_data['x']['right'] = train_window_x_right = train_window_x_all[:, 3:-2]  # right x
         train_mode_data['x']['avg_angle'] = train_window_x_all[:, -2:]  # avg angle as reported by OpenFace
-        train_mode_data['x']['avg_vector'] = (train_window_x_left + train_window_x_right)/2  # manually averaged
+        train_mode_data['x']['avg_vector'] = (train_window_x_left + train_window_x_right) / 2  # manually averaged
 
         train_mode_data['y']['all'] = train_window_y_all = train_window_data[:, nip:]  # all y
         train_mode_data['y']['both_eyes'] = train_window_data[:, nip:-2]
         train_mode_data['y']['left'] = train_window_y_left = train_window_y_all[:, :2]  # left y
         train_mode_data['y']['right'] = train_window_y_right = train_window_y_all[:, 2:4]  # right y
         train_mode_data['y']['avg_angle'] = train_window_y_all[:, -2:]  # avg y for angles and vectors
-        train_mode_data['y']['avg_vector'] = (train_window_y_left + train_window_y_right)/2
+        train_mode_data['y']['avg_vector'] = (train_window_y_left + train_window_y_right) / 2
 
         data['train'][window_size] = train_mode_data
 
@@ -264,47 +263,65 @@ for idx in range(nfolds):
         data['test'][window_size] = test_mode_data
 
     # making classifications on each mode one by one, on the classifiers that are mentioned, across windows
-    for mode in modes:
-        train_mean_errors = []
-        windows = []
+    # for mode in modes:
 
-        for clf in classifiers:
-            for window_size in tqdm(range(1, window_iter), desc=classifiers[0] + ' ' + mode):
-                windows.append(window_size)
+    train_mean_errors = []
+    windows = []
 
-                train_window_x = data['train'][window_size]['x'][mode]
-                train_window_y = data['train'][window_size]['y'][mode]
+    for clf in classifiers:
+        output_folder = os.path.join(result_path, clf)
+        fold_path = os.path.join(output_folder, str(idx))
+        if not os.path.exists(fold_path):
+            os.mkdir(fold_path)
 
-                test_window_x = data['test'][window_size]['x'][mode]
-                test_window_y = data['test'][window_size]['y'][mode]
+        pd.DataFrame(train_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'train_pids.csv'))
+        pd.DataFrame(test_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
 
-                window_x = data['all'][window_size]['x'][mode]
-                window_y = data['all'][window_size]['y'][mode]
+        for window_size in tqdm(range(1, window_iter), desc=str(idx) + ' ' + clf + ' ' + mode):
+            windows.append(window_size)
 
-                model = ClassifiersFactory().get_model(clf)
-                chain = RegressorChain(base_estimator=model)
-                # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
-                # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
-                #                                            scoring='neg_mean_absolute_error',
-                #                                            cv=cv, n_jobs=n_jobs))
-                # train_errors = cross_validate(chain, train_window_x, train_window_y,
-                #                               scoring='neg_mean_absolute_error',
-                #                               cv=cv, n_jobs=-1,
-                #                               return_estimator=True, return_train_score=True)
+            train_window_x = data['train'][window_size]['x'][mode]
+            train_window_y = data['train'][window_size]['y'][mode]
 
-                chain = chain.fit(train_window_x, train_window_y)
-                window_preds = chain.predict(test_window_x)
-                error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
-                train_mean_errors.append(np.mean(error))
+            test_window_x = data['test'][window_size]['x'][mode]
+            test_window_y = data['test'][window_size]['y'][mode]
 
-            plt.clf()
-            plt.title('{} {} {}'.format(clf, window_iter, mode))
-            plt.xlabel('window size')
-            plt.ylabel('mean error')
-            plt.plot(windows, train_mean_errors)
-            print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
-            plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
-            plt.close()
+            # window_x = data['all'][window_size]['x'][mode]
+            # window_y = data['all'][window_size]['y'][mode]
 
-            error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
-            pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
+            model = ClassifiersFactory().get_model(clf)
+            chain = RegressorChain(base_estimator=model)
+            # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
+            # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
+            #                                            scoring='neg_mean_absolute_error',
+            #                                            cv=cv, n_jobs=n_jobs))
+            # train_errors = cross_validate(chain, train_window_x, train_window_y,
+            #                               scoring='neg_mean_absolute_error',
+            #                               cv=cv, n_jobs=-1,
+            #                               return_estimator=True, return_train_score=True)
+
+            chain = chain.fit(train_window_x, train_window_y)
+            window_preds = chain.predict(test_window_x)
+            error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
+            train_mean_errors.append(np.mean(error))
+
+        plt.clf()
+        plt.title('{} {} {}'.format(clf, window_iter, mode))
+        plt.xlabel('window size')
+        plt.ylabel('mean error')
+        plt.plot(windows, train_mean_errors)
+        print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
+        plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+        plt.close()
+
+        error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
+        pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
+
+    return 0
+
+
+for m in modes:
+    cpu_count = os.cpu_count()
+    pool = Pool(processes=cpu_count)
+    cv = [pool.apply_async(try_multi, args=(seed, m)) for seed in range(nfolds)]
+    op = [p.get() for p in cv]
