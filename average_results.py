@@ -20,7 +20,7 @@ def average_results(clf, window_iter, mode):
     plt.xlabel('window size')
     plt.ylabel('mean error')
     plt.plot(win_range, average_vals)
-    print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
+    print('saving average plot {}_{}_{}.png'.format(clf, window_iter, mode))
     plt.savefig(os.path.join(clf_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
     plt.close()
 

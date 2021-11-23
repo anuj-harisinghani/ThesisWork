@@ -181,7 +181,7 @@ for oc in output_clfs:
         os.mkdir(oc)
 
 
-def try_multi(idx, mode):
+def try_multi(idx, mode, clf):
     data = {'train': {i: None for i in range(1, window_iter)},
             'test': {i: None for i in range(1, window_iter)},
             'all': {i: None for i in range(1, window_iter)}}
@@ -269,61 +269,62 @@ def try_multi(idx, mode):
     train_mean_errors = []
     windows = []
 
-    for clf in classifiers:
-        output_folder = os.path.join(result_path, clf)
-        fold_path = os.path.join(output_folder, str(idx))
-        if not os.path.exists(fold_path):
-            os.mkdir(fold_path)
+    # for clf in classifiers:
+    output_folder = os.path.join(result_path, clf)
+    fold_path = os.path.join(output_folder, str(idx))
+    if not os.path.exists(fold_path):
+        os.mkdir(fold_path)
 
-        pd.DataFrame(train_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'train_pids.csv'))
-        pd.DataFrame(test_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
+    pd.DataFrame(train_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'train_pids.csv'))
+    pd.DataFrame(test_splits[idx], columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
 
-        for window_size in tqdm(range(1, window_iter), desc=str(idx) + ' ' + clf + ' ' + mode):
-            windows.append(window_size)
+    for window_size in tqdm(range(1, window_iter), desc=str(idx) + ' ' + clf + ' ' + mode):
+        windows.append(window_size)
 
-            train_window_x = data['train'][window_size]['x'][mode]
-            train_window_y = data['train'][window_size]['y'][mode]
+        train_window_x = data['train'][window_size]['x'][mode]
+        train_window_y = data['train'][window_size]['y'][mode]
 
-            test_window_x = data['test'][window_size]['x'][mode]
-            test_window_y = data['test'][window_size]['y'][mode]
+        test_window_x = data['test'][window_size]['x'][mode]
+        test_window_y = data['test'][window_size]['y'][mode]
 
-            # window_x = data['all'][window_size]['x'][mode]
-            # window_y = data['all'][window_size]['y'][mode]
+        # window_x = data['all'][window_size]['x'][mode]
+        # window_y = data['all'][window_size]['y'][mode]
 
-            model = ClassifiersFactory().get_model(clf)
-            chain = RegressorChain(base_estimator=model)
-            # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
-            # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
-            #                                            scoring='neg_mean_absolute_error',
-            #                                            cv=cv, n_jobs=n_jobs))
-            # train_errors = cross_validate(chain, train_window_x, train_window_y,
-            #                               scoring='neg_mean_absolute_error',
-            #                               cv=cv, n_jobs=-1,
-            #                               return_estimator=True, return_train_score=True)
+        model = ClassifiersFactory().get_model(clf)
+        chain = RegressorChain(base_estimator=model)
+        # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
+        # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
+        #                                            scoring='neg_mean_absolute_error',
+        #                                            cv=cv, n_jobs=n_jobs))
+        # train_errors = cross_validate(chain, train_window_x, train_window_y,
+        #                               scoring='neg_mean_absolute_error',
+        #                               cv=cv, n_jobs=-1,
+        #                               return_estimator=True, return_train_score=True)
 
-            chain = chain.fit(train_window_x, train_window_y)
-            window_preds = chain.predict(test_window_x)
-            error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
-            train_mean_errors.append(np.mean(error))
+        chain = chain.fit(train_window_x, train_window_y)
+        window_preds = chain.predict(test_window_x)
+        error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
+        train_mean_errors.append(np.mean(error))
 
-        plt.clf()
-        plt.title('{} {} {}'.format(clf, window_iter, mode))
-        plt.xlabel('window size')
-        plt.ylabel('mean error')
-        plt.plot(windows, train_mean_errors)
-        print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
-        plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
-        plt.close()
+    plt.clf()
+    plt.title('{} {} {}'.format(clf, window_iter, mode))
+    plt.xlabel('window size')
+    plt.ylabel('mean error')
+    plt.plot(windows, train_mean_errors)
+    print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
+    plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+    plt.close()
 
-        error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
-        pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
+    error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
+    pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
 
     return 0
 
 
-for m in modes:
-    cpu_count = os.cpu_count()
-    pool = Pool(processes=cpu_count)
-    cv = [pool.apply_async(try_multi, args=(seed, m)) for seed in range(nfolds)]
-    op = [p.get() for p in cv]
-    average_results(classifiers[0], window_iter, m)
+for clf in classifiers:
+    for m in modes:
+        cpu_count = os.cpu_count()
+        pool = Pool(processes=cpu_count)
+        cv = [pool.apply_async(try_multi, args=(seed, m, clf)) for seed in range(nfolds)]
+        op = [p.get() for p in cv]
+        average_results(classifiers[0], window_iter, m)
