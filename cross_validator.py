@@ -1,4 +1,5 @@
 from ModelHandler import ClassifiersFactory
+from average_results import average_results
 
 import os
 import numpy as np
@@ -325,3 +326,4 @@ for m in modes:
     pool = Pool(processes=cpu_count)
     cv = [pool.apply_async(try_multi, args=(seed, m)) for seed in range(nfolds)]
     op = [p.get() for p in cv]
+    average_results(classifiers[0], window_iter, m)

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 def average_results(clf, window_iter, mode):
     clf_path = os.path.join('results', clf)
-    seeds = os.listdir(clf_path)
+    seeds = [i for i in os.listdir(clf_path) if len(i.split('.')) < 2]
     seed_paths = [os.path.join(clf_path, s) for s in seeds]
     filename = '{}_{}_{}.csv'.format(clf, window_iter, mode)
     seed_mode_paths = [os.path.join(seed_paths[s], filename) for s in range(len(seeds))]
