@@ -174,7 +174,7 @@ classifiers = ['GradBoost', 'SVM', 'KNN', 'DecisionTree', 'AdaBoost', 'Bagging',
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
 window_iter = 80
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
-modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all']
+modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
 
 output_clfs = [os.path.join(result_path, clf) for clf in classifiers]
 for oc in output_clfs:
@@ -205,6 +205,8 @@ def try_multi(idx, mode, clf):
         all_mode_data['x']['right'] = all_window_x_right = all_window_x_all[:, 3:-2]  # right x
         all_mode_data['x']['avg_angle'] = all_window_x_all[:, -2:]  # avg angle as reported by OpenFace
         all_mode_data['x']['avg_vector'] = (all_window_x_left + all_window_x_right) / 2  # manually averaged
+        all_mode_data['x']['all_vector'] = np.append(all_mode_data['x']['both_eyes'],
+                                                     all_mode_data['x']['avg_vector'], axis=1)
 
         all_mode_data['y']['all'] = all_window_y_all = all_window_data[:, nip:]  # all y
         all_mode_data['y']['both_eyes'] = all_window_data[:, nip:-2]
@@ -212,6 +214,7 @@ def try_multi(idx, mode, clf):
         all_mode_data['y']['right'] = all_window_y_right = all_window_y_all[:, 2:4]  # right y
         all_mode_data['y']['avg_angle'] = all_window_y_all[:, -2:]  # avg y for angles and vectors
         all_mode_data['y']['avg_vector'] = (all_window_y_left + all_window_y_right) / 2
+        all_mode_data['y']['all_vector'] = all_window_y_all
 
         data['all'][window_size] = all_mode_data
 
@@ -230,6 +233,8 @@ def try_multi(idx, mode, clf):
         train_mode_data['x']['right'] = train_window_x_right = train_window_x_all[:, 3:-2]  # right x
         train_mode_data['x']['avg_angle'] = train_window_x_all[:, -2:]  # avg angle as reported by OpenFace
         train_mode_data['x']['avg_vector'] = (train_window_x_left + train_window_x_right) / 2  # manually averaged
+        train_mode_data['x']['all_vector'] = np.append(train_mode_data['x']['both_eyes'],
+                                                       train_mode_data['x']['avg_vector'], axis=1)
 
         train_mode_data['y']['all'] = train_window_y_all = train_window_data[:, nip:]  # all y
         train_mode_data['y']['both_eyes'] = train_window_data[:, nip:-2]
@@ -237,6 +242,7 @@ def try_multi(idx, mode, clf):
         train_mode_data['y']['right'] = train_window_y_right = train_window_y_all[:, 2:4]  # right y
         train_mode_data['y']['avg_angle'] = train_window_y_all[:, -2:]  # avg y for angles and vectors
         train_mode_data['y']['avg_vector'] = (train_window_y_left + train_window_y_right) / 2
+        train_mode_data['y']['all_vector'] = train_window_y_all
 
         data['train'][window_size] = train_mode_data
 
@@ -254,6 +260,8 @@ def try_multi(idx, mode, clf):
         test_mode_data['x']['right'] = test_window_x_right = test_window_x_all[:, 3:-2]  # right x
         test_mode_data['x']['avg_angle'] = test_window_x_all[:, -2:]  # avg angle as reported by OpenFace
         test_mode_data['x']['avg_vector'] = (test_window_x_left + test_window_x_right) / 2  # manually averaged
+        test_mode_data['x']['all_vector'] = np.append(test_mode_data['x']['both_eyes'],
+                                                      test_mode_data['x']['avg_vector'], axis=1)
 
         test_mode_data['y']['all'] = test_window_y_all = test_window_data[:, nip:]  # all y
         test_mode_data['y']['both_eyes'] = test_window_data[:, nip:-2]
@@ -261,6 +269,7 @@ def try_multi(idx, mode, clf):
         test_mode_data['y']['right'] = test_window_y_right = test_window_y_all[:, 2:4]  # right y
         test_mode_data['y']['avg_angle'] = test_window_y_all[:, -2:]  # avg y for angles and vectors
         test_mode_data['y']['avg_vector'] = (test_window_y_left + test_window_y_right) / 2
+        test_mode_data['y']['all_vector'] = test_window_y_all
 
         data['test'][window_size] = test_mode_data
 
