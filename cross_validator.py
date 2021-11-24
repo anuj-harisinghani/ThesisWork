@@ -170,7 +170,7 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['GradBoost', 'SVM', 'KNN', 'DecisionTree', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
+classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
 window_iter = 80
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
