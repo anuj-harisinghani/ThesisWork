@@ -33,10 +33,10 @@ def average_results(clf, window_iter, mode):
     pd.DataFrame(average_vals, columns=['mean absolute error'], index=win_range).to_csv(error_filename)
 
 
-def plot_all_averaged_models(window_iter, mode):
+def plot_all_averaged_models(window_iter, mode, clfs):
     # clfs = [i for i in os.listdir(result_path) if len(i.split('.')) < 2]
-    clfs = [i for i in os.listdir(result_path) if len(i.split('.')) < 2 and
-            len(os.listdir(os.path.join(result_path, i))) > 10]
+    # clfs = [i for i in os.listdir(result_path) if len(i.split('.')) < 2 and
+    #       len(os.listdir(os.path.join(result_path, i))) > 10]
 
     if window_iter > 20:
         clfs = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']

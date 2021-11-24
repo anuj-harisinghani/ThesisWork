@@ -172,9 +172,9 @@ plt.plot(windows, lens)
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
-window_iter = 80
+window_iter = 20
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
-modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
+modes = ['all_vector'] # ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
 
 output_clfs = [os.path.join(result_path, clf) for clf in classifiers]
 for oc in output_clfs:
@@ -340,7 +340,8 @@ for clf in classifiers:
         op = [p.get() for p in cv]
         average_results(clf, window_iter, m)
 
+# classifiers = 
 # for creating plots for averaged results
 for m in modes:
-    plot_all_averaged_models(window_iter, m)
+    plot_all_averaged_models(window_iter, m, classifiers)
 
