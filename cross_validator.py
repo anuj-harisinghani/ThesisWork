@@ -171,7 +171,7 @@ plt.plot(windows, lens)
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg',
-               'Ridge', 'Lasso', 'Lasso_multi', 'Elastic', 'Elastic_multi']
+               'Ridge', 'Lasso', 'Lasso_multi', 'Elastic']  # , 'Elastic_multi']
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
 window_iter = 20
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
