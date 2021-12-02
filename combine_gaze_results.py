@@ -2,15 +2,41 @@ import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import moviepy.editor
+# import moviepy.editor
 import matplotlib.pyplot as plt
 
-processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
-baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
-eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
-videos_path = '/home/anuj/Documents/CANARY_Baseline/video'
-diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted2'
+# processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
+# baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
+# eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
+# # videos_path = '/home/anuj/Documents/CANARY_Baseline/video'
+# diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
+# data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted2'
+
+dataset = 'Baseline'
+result_path = os.path.join('results')
+task_timestamps_file = None
+data_saving_path = None
+diagnosis_file_path = None
+baseline_processed = None
+eye_data_path = None
+n_jobs = None
+
+if os.name == 'nt':
+    baseline_processed = r"C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze"
+    eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
+    diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
+    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/"
+    task_timestamps_file = r"C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
+    n_jobs = 6
+
+elif os.name == 'posix':
+    processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
+    baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
+    eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
+    diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+    task_timestamps_file = '/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv'
+    n_jobs = -1
 
 if not os.path.exists(data_saving_path):
     os.mkdir(data_saving_path)
@@ -36,9 +62,14 @@ meta_data_cols = ['PID', 'Total TS error', 'Mean TS error', 'Num masked data poi
 
 
 for pid in tqdm(valid_pids):
-    pid_folder_path = os.path.join(baseline_processed, pid)
-    csv_filename = [i for i in os.listdir(pid_folder_path) if i.endswith('.csv')][0]
-    csv_file = pd.read_csv(os.path.join(pid_folder_path, csv_filename))
+    if os.name == 'posix':
+        pid_folder_path = os.path.join(baseline_processed, pid)
+        csv_filename = [i for i in os.listdir(pid_folder_path) if i.endswith('.csv')][0]
+        csv_file = pd.read_csv(os.path.join(pid_folder_path, csv_filename))
+
+    elif os.name == 'nt':
+        csv_filename = [i for i in os.listdir(baseline_processed) if pid in i][0]
+        csv_file = pd.read_csv(os.path.join(baseline_processed, csv_filename))
 
     # extracting gaze relevant columns from the csv_files
     columns = list(csv_file.columns)[:13]
@@ -77,29 +108,38 @@ for pid in tqdm(valid_pids):
         'RecordingTimestamp',
         'LocalTimeStamp',
         'EyeTrackerTimestamp',
+
         'KeyPressEventIndex',
         'KeyPressEvent',
+        'MouseEventIndex',
+        'MouseEvent',
         'StudioEventIndex',
         'StudioEvent',
+
         'FixationIndex',
         'SaccadeIndex',
         'GazeEventType',
         'GazeEventDuration',
         'GazePointIndex',
+
         'GazePointLeftX (ADCSpx)',
         'GazePointLeftY (ADCSpx)',
         'GazePointRightX (ADCSpx)',
         'GazePointRightY (ADCSpx)',
         'GazePointX (ADCSpx)',
         'GazePointY (ADCSpx)',
+
         'GazePointX (MCSpx)',
         'GazePointY (MCSpx)',
+
         'GazePointLeftX (ADCSmm)',
         'GazePointLeftY (ADCSmm)',
         'GazePointRightX (ADCSmm)',
         'GazePointRightY (ADCSmm)',
+
         'StrictAverageGazePointX (ADCSmm)',
         'StrictAverageGazePointY (ADCSmm)',
+
         'EyePosLeftX (ADCSmm)',
         'EyePosLeftY (ADCSmm)',
         'EyePosLeftZ (ADCSmm)',
