@@ -1,6 +1,10 @@
 from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.linear_model import Ridge, Lasso, MultiTaskLasso
+from sklearn.linear_model import ElasticNet, MultiTaskElasticNet
+
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
+
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import LinearSVR
 from sklearn.dummy import DummyRegressor
@@ -22,7 +26,12 @@ class ClassifiersFactory:
             "LinearReg": LinearRegression(),
             "AdaBoost": AdaBoostRegressor(),
             "Bagging": BaggingRegressor(),
-            "Dummy": DummyRegressor()
+            "Dummy": DummyRegressor(),
+            "Lasso": Lasso(),
+            "Ridge": Ridge(),
+            "Lasso_multi": MultiTaskLasso(),
+            "Elastic": ElasticNet(),
+            "Elastic_multi": MultiTaskElasticNet()
         }
 
     def get_models(self, classifiers: list) -> list:
