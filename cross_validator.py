@@ -170,11 +170,11 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
+classifiers = ['LogReg']  # ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
 window_iter = 20
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
-modes = ['all_vector'] # ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
+modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
 
 output_clfs = [os.path.join(result_path, clf) for clf in classifiers]
 for oc in output_clfs:
