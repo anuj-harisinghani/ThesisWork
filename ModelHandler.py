@@ -27,6 +27,7 @@ class ClassifiersFactory:
             "AdaBoost": AdaBoostRegressor(),
             "Bagging": BaggingRegressor(),
             "Dummy": DummyRegressor(),
+
             "Lasso": Lasso(),
             "Ridge": Ridge(),
             "Lasso_multi": MultiTaskLasso(),
