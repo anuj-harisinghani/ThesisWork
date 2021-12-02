@@ -134,8 +134,50 @@ for task in tasks:
 
     big_stats_bip.append(task_stats_bip)
 
+    # across pids data, to plot graph
+    across_pid_og_start = valid_pid_filter['timestampIni']
+    across_pid_og_end = valid_pid_filter['timestampEnd']
+    across_pid_bip_start = valid_pid_filter['timestampIni_bip']
+    across_pid_bip_end = valid_pid_filter['timestampEnd_bip']
+
+    across_pid_duration = across_pid_og_end.subtract(across_pid_og_start, axis=0)
+
+    # OG Start
+    plt.xlabel('starting timestamp')
+    plt.ylabel('num participants')
+    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
+    plt.hist(across_pid_og_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+
+    # OG End
+    plt.xlabel('end timestamp')
+    plt.ylabel('num participants')
+    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
+    plt.hist(across_pid_og_end, bins=50)  # or plt.hist(lens, bins=50) for older one
+
+    # BIP Start
+    plt.xlabel('starting timestamp BIP')
+    plt.ylabel('num participants')
+    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
+    plt.hist(across_pid_bip_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+
+    # BIP End
+    plt.xlabel('end timestamp BIP')
+    plt.ylabel('num participants')
+    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
+    plt.hist(across_pid_bip_end, bins=50)  # or plt.hist(lens, bins=50) for older one
+
+    # Duration = same for OG and BIP
+    plt.xlabel('duration')
+    plt.ylabel('num participants')
+    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
+    plt.hist(across_pid_duration, bins=50)  # or plt.hist(lens, bins=50) for older one
+
 big_stats_og = np.array(big_stats_og)
 big_stats_bip = np.array(big_stats_bip)
 
 pd.DataFrame(big_stats_og, columns=task_time_stats_cols).to_csv(os.path.join(task_save_path, 'timestamp_stats_normal.csv'))
 pd.DataFrame(big_stats_bip, columns=task_time_stats_cols).to_csv(os.path.join(task_save_path, 'timestamp_stats_bip.csv'))
+
+
+
+
