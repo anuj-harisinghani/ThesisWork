@@ -5,16 +5,9 @@ from tqdm import tqdm
 # import moviepy.editor
 import matplotlib.pyplot as plt
 
-# processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
-# baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
-# eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
-# # videos_path = '/home/anuj/Documents/CANARY_Baseline/video'
-# diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-# data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted2'
 
 dataset = 'Baseline'
 result_path = os.path.join('results')
-task_timestamps_file = None
 data_saving_path = None
 diagnosis_file_path = None
 baseline_processed = None
@@ -26,7 +19,6 @@ if os.name == 'nt':
     eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
     data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/"
-    task_timestamps_file = r"C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
     n_jobs = 6
 
 elif os.name == 'posix':
@@ -35,7 +27,6 @@ elif os.name == 'posix':
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
     data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
-    task_timestamps_file = '/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv'
     n_jobs = -1
 
 if not os.path.exists(data_saving_path):
