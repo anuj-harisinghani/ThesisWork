@@ -52,20 +52,11 @@ for task in tasks:
 input_data = []
 output_data = []
 
-# getting the PIDs which had valid eye-tracking calibration, based on what we use in multimodal-ml-framework
-# this gives us 163 PIDs with valid eye-tracking, and that are processed by OpenFace
-# so we'll focus on these ones first
-pids_diag = pd.read_csv(diagnosis_file_path)
-eye_tracking_calibration_flag = 2
-valid_pids = list(pids_diag[pids_diag['Eye-Tracking Calibration?'] >= eye_tracking_calibration_flag]['interview'])
+# valid_pids from meta_data outliers
+meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
+meta_mask = meta_data['outlier?'] == False
+valid_pids = list(meta_data[meta_mask]['PID'])
 
-# custom stuff:
-incompatible_pids = ['EO-028', 'HI-045', 'EA-046', 'EL-114', 'ET-171']
-valid_pids = np.setdiff1d(valid_pids, incompatible_pids)
-
-# metadata
-meta_data = []
-meta_data_cols = ['PID', 'Total TS error', 'Mean TS error', 'Num masked data points', 'Min TS', 'Max TS']
 
 # tasks metadata
 task_time_stats = []
@@ -75,6 +66,8 @@ task_time_stats_cols = ['task',
                         'min start timestamp', 'min end timestamp',
                         'std start timestamp', 'std end timestamp']
 
+task_duration_stats_cols = ['task', 'mean duration seconds', 'max duration seconds', 'min duration seconds', 'std duration seconds']
+sampling_rate = 120
 
 ttf = pd.read_csv(task_timestamps_file)
 ttf_cols = list(ttf.columns)
@@ -85,6 +78,7 @@ bip_cols = ttf_cols[6:8]
 stats = ['mean', 'max', 'min', 'std']
 big_stats_og = []
 big_stats_bip = []
+big_stats_duration = []
 
 for task in tasks:
     stats_og = []
@@ -98,10 +92,10 @@ for task in tasks:
     for col in og_cols:
         print(task, col)
         data = valid_pid_filter[col]
-        mean = data.mean()
-        maxi = data.max()
-        mini = data.min()
-        std = data.std()
+        mean = data.mean() / sampling_rate
+        maxi = data.max() / sampling_rate
+        mini = data.min() / sampling_rate
+        std = data.std() / sampling_rate
 
         st_og_col.extend([mean, maxi, mini, std])
 
@@ -118,10 +112,10 @@ for task in tasks:
     for col in bip_cols:
         print(task, col)
         data = valid_pid_filter[col]
-        mean = data.mean()
-        maxi = data.max()
-        mini = data.min()
-        std = data.std()
+        mean = data.mean() / sampling_rate
+        maxi = data.max() / sampling_rate
+        mini = data.min() / sampling_rate
+        std = data.std() / sampling_rate
 
         st_bip_col.extend([mean, maxi, mini, std])
 
@@ -141,42 +135,63 @@ for task in tasks:
     across_pid_bip_end = valid_pid_filter['timestampEnd_bip']
 
     across_pid_duration = across_pid_og_end.subtract(across_pid_og_start, axis=0)
+    across_pid_duration_seconds = across_pid_duration/sampling_rate
 
-    # OG Start
-    plt.xlabel('starting timestamp')
-    plt.ylabel('num participants')
-    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
-    plt.hist(across_pid_og_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+    # duration stats
+    mean = across_pid_duration_seconds.mean()
+    maxi = across_pid_duration_seconds.max()
+    mini = across_pid_duration_seconds.min()
+    std = across_pid_duration_seconds.std()
+    big_stats_duration.append([task, mean, maxi, mini, std])
 
-    # OG End
-    plt.xlabel('end timestamp')
-    plt.ylabel('num participants')
-    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
-    plt.hist(across_pid_og_end, bins=50)  # or plt.hist(lens, bins=50) for older one
+    ylabel = 'num participants'
 
-    # BIP Start
-    plt.xlabel('starting timestamp BIP')
-    plt.ylabel('num participants')
-    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
-    plt.hist(across_pid_bip_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+    # # OG Start
+    # label = task + ' starting timestamp'
+    #
+    # plt.xlabel(label)
+    # plt.ylabel(ylabel)
+    # plt.hist(across_pid_og_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+    #
+    # # OG End
+    # label = task + ' end timestamp'
+    # plt.xlabel(label)
+    # plt.ylabel(ylabel)
+    # plt.hist(across_pid_og_end, bins=50)  # or plt.hist(lens, bins=50) for older one
+    #
+    # # BIP Start
+    # label = task + ' starting timestamp BIP'
+    # plt.xlabel(label)
+    # plt.ylabel(ylabel)
+    # plt.hist(across_pid_bip_start, bins=50)  # or plt.hist(lens, bins=50) for older one
+    #
+    # # BIP End
+    # label = task + ' end timestamp BIP'
+    # plt.xlabel(label)
+    # plt.ylabel(ylabel)
+    # plt.hist(across_pid_bip_end, bins=50)  # or plt.hist(lens, bins=50) for older one
+    #
+    # # Duration = same for OG and BIP
+    # label = task + ' duration'
+    # plt.xlabel(label)
+    # plt.ylabel(ylabel)
+    # plt.hist(across_pid_duration, bins=50)  # or plt.hist(lens, bins=50) for older one
 
-    # BIP End
-    plt.xlabel('end timestamp BIP')
-    plt.ylabel('num participants')
-    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
-    plt.hist(across_pid_bip_end, bins=50)  # or plt.hist(lens, bins=50) for older one
-
-    # Duration = same for OG and BIP
-    plt.xlabel('duration')
-    plt.ylabel('num participants')
-    # h1 = plt.hist(lens, bins=50, range=[0, max(lens)])
-    plt.hist(across_pid_duration, bins=50)  # or plt.hist(lens, bins=50) for older one
+    # Duration in seconds
+    plt.clf()
+    label = task + ' duration in seconds'
+    plt.xlabel(label)
+    plt.ylabel(ylabel)
+    plt.hist(across_pid_duration_seconds, bins=50)  # or plt.hist(lens, bins=50) for older one
+    plt.savefig(os.path.join(task_save_folder_paths[task], label+'.png'))
 
 big_stats_og = np.array(big_stats_og)
 big_stats_bip = np.array(big_stats_bip)
+big_stats_duration = np.array(big_stats_duration)
 
 pd.DataFrame(big_stats_og, columns=task_time_stats_cols).to_csv(os.path.join(task_save_path, 'timestamp_stats_normal.csv'))
 pd.DataFrame(big_stats_bip, columns=task_time_stats_cols).to_csv(os.path.join(task_save_path, 'timestamp_stats_bip.csv'))
+pd.DataFrame(big_stats_duration, columns=task_duration_stats_cols).to_csv(os.path.join(task_save_path, 'duration_stats_seconds.csv'))
 
 
 
