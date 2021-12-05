@@ -99,7 +99,7 @@ nop = len(op_cols) - 1
 
 # creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
 random_seed = 0
-nfolds = 5
+nfolds = 10
 random.Random(random_seed).shuffle(valid_pids)
 test_splits = np.array_split(valid_pids, nfolds)
 train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
@@ -171,7 +171,7 @@ plt.plot(windows, lens)
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
 classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg',
-               'Ridge', 'Lasso', 'Lasso_multi', 'Elastic']  # , 'Elastic_multi']
+               'Ridge', 'Lasso', 'Elastic']  # , 'Lasso_multi', 'Elastic_multi']
 # classifiers = ['Bagging', 'Dummy', 'LinearReg']
 window_iter = 20
 # modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
@@ -300,11 +300,8 @@ def try_multi(idx, mode, clf):
 
         # window_x = data['all'][window_size]['x'][mode]
         # window_y = data['all'][window_size]['y'][mode]
-        if clf != 'Elastic_multi':
-            model = ClassifiersFactory().get_model(clf)
-            chain = RegressorChain(base_estimator=model)
-        else:
-            chain = ClassifiersFactory().get_model(clf)
+        model = ClassifiersFactory().get_model(clf)
+        chain = RegressorChain(base_estimator=model)
         # cv = RepeatedKFold(n_splits=10, n_repeats=10, random_state=0)
         # train_errors = np.absolute(cross_val_score(chain, train_window_x, train_window_y,
         #                                            scoring='neg_mean_absolute_error',
