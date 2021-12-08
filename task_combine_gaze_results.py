@@ -67,7 +67,7 @@ task_time_stats_cols = ['task',
                         'std start timestamp', 'std end timestamp']
 
 task_duration_stats_cols = ['task', 'mean duration seconds', 'max duration seconds', 'min duration seconds', 'std duration seconds']
-sampling_rate = 120
+sampling_rate = 1000  # this is not sampling rate. The values in the TasksTimestamps.csv file are in milliseconds.
 
 ttf = pd.read_csv(task_timestamps_file)
 ttf_cols = list(ttf.columns)
@@ -183,7 +183,7 @@ for task in tasks:
     plt.xlabel(label)
     plt.ylabel(ylabel)
     plt.hist(across_pid_duration_seconds, bins=50)  # or plt.hist(lens, bins=50) for older one
-    plt.savefig(os.path.join(task_save_folder_paths[task], label+'.png'))
+    plt.savefig(os.path.join(task_save_path, label+'.png'))
 
 big_stats_og = np.array(big_stats_og)
 big_stats_bip = np.array(big_stats_bip)
