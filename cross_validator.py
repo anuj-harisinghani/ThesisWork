@@ -25,7 +25,8 @@ if os.name == 'nt':
     baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
     eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/'
+    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_mm/"
+    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_px/"
     n_jobs = 6
 
 elif os.name == 'posix':
@@ -33,7 +34,8 @@ elif os.name == 'posix':
     baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_mm'
+    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_px'
     n_jobs = -1
 
 # get valid pids from meta_data based on outlier or not
@@ -81,14 +83,25 @@ ip_cols = [
     'gaze_angle_x',
     'gaze_angle_y']  # 9 columns
 
+# pixels output
+# op_cols = [
+#     'timestamp',
+#     'GazePointLeftX (ADCSpx)',
+#     'GazePointLeftY (ADCSpx)',
+#     'GazePointRightX (ADCSpx)',
+#     'GazePointRightY (ADCSpx)',
+#     'GazePointX (ADCSpx)',
+#     'GazePointY (ADCSpx)']  # 7 columns
+
+# mm output
 op_cols = [
     'timestamp',
-    'GazePointLeftX (ADCSpx)',
-    'GazePointLeftY (ADCSpx)',
-    'GazePointRightX (ADCSpx)',
-    'GazePointRightY (ADCSpx)',
-    'GazePointX (ADCSpx)',
-    'GazePointY (ADCSpx)']  # 7 columns
+    'GazePointLeftX (ADCSmm)',
+    'GazePointLeftY (ADCSmm)',
+    'GazePointRightX (ADCSmm)',
+    'GazePointRightY (ADCSmm)',
+    'StrictAverageGazePointX (ADCSmm)',
+    'StrictAverageGazePointY (ADCSmm)']  # 7 columns
 
 input_data = []
 output_data = []
@@ -122,7 +135,8 @@ for pid in valid_pids:
         if t / 10 in x[:, 0]:  # t/10 will also be in y[:,0], and most probably in the same location
             ind = np.argwhere(x[:, 0] == t / 10)[0][0]
             t_x[t] = x[ind][1:]
-            t_y[t] = y[ind][1:]
+            # t_y[t] = y[ind][1:]
+            t_y[t] = y[ind][1:len(op_cols)]
 
     input_data.append(t_x)
     output_data.append(t_y)
@@ -170,12 +184,10 @@ plt.plot(windows, lens)
 
 # processing the data to fit in 'data' variable
 # each window size has an 'x' 'y', and each 'x' 'y' has left, right, avg, all datasets
-classifiers = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg',
-               'Ridge', 'Lasso', 'Elastic']  # , 'Lasso_multi', 'Elastic_multi']
-# classifiers = ['Bagging', 'Dummy', 'LinearReg']
+classifiers = ['Dummy', 'LinearReg',
+               'Ridge', 'Lasso']
 window_iter = 20
-# modes = ['left', 'right', 'both_eyes', 'avg_vector', 'avg_angle', 'all']  # don't use avg_angle, it's not
-modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all', 'all_vector']
+modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all_vector']
 
 output_clfs = [os.path.join(result_path, clf) for clf in classifiers]
 for oc in output_clfs:
@@ -340,7 +352,13 @@ for clf in classifiers:
         op = [p.get() for p in cv]
         average_results(clf, window_iter, m)
 
-# classifiers = 
+# for clf in classifiers:
+#     for m in modes:
+#         for seed in range(nfolds):
+#             try_multi(seed, m, clf)
+#         average_results(clf, window_iter, m)
+
+
 # for creating plots for averaged results
 for m in modes:
     plot_all_averaged_models(window_iter, m, classifiers)

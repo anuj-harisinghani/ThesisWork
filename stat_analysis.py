@@ -57,8 +57,8 @@ for mode in modes:
 # data_mean.columns = ['mode', 'clf', 'mean_abs_error']
 
 #
-g = sns.catplot(data=data_mean, kind='bar', x='mode', y='mean_abs_error', hue='clf')
-# g = sns.catplot(data=data2, kind='bar', x='mode', y='mean_abs_error', hue='clf', ci='sd')
+# g = sns.catplot(data=data_mean, kind='bar', x='mode', y='mean_abs_error', hue='clf')
+g = sns.catplot(data=data2, kind='bar', x='mode', y='mean_abs_error', hue='clf', ci='sd')
 # only_linear = sns.catplot(data=data[data['clf'] == 'LinearReg'], kind='bar', x='mode', y='mean_abs_error', hue='clf')
 
 
@@ -71,6 +71,21 @@ aov_table = anova_lm(anova, typ=1)
 data = data2[data2['clf']=='LinearReg']
 m_comp = pairwise_tukeyhsd(endog=data['mean_abs_error'], groups=data['clf'] + " / " + data['mode'], alpha=0.05)
 print(m_comp)
+
+tukey_data = pd.DataFrame(data=m_comp._results_table.data[1:], columns=m_comp._results_table.data[0])
+tukey_data.to_csv(os.path.join(stat_path, 'tukey_LR_against_modes.csv'))
+
+
+data = data2
+m_comp = pairwise_tukeyhsd(endog=data['mean_abs_error'], groups=data['clf'] + " / " + data['mode'], alpha=0.05)
+print(m_comp)
+
+tukey_data = pd.DataFrame(data=m_comp._results_table.data[1:], columns=m_comp._results_table.data[0])
+ind = [i for i in tukey_data.index if tukey_data['group1'][i].split(' / ')[-1] == tukey_data['group2'][i].split(' / ')[-1]]
+tukey = tukey_data.iloc[ind]
+tukey.to_csv(os.path.join(stat_path, 'tukey_LR_vs_dummy.csv'))
+
+
 
 # pairwise t-test
 # metric = 'mean_abs_error'
@@ -99,37 +114,37 @@ for mode in modes:
     #     for clf2 in clfs_no_dummy:
     #         if clf1 == clf2:
     #             continue
-    clf1 = 'LinearReg'
+    clf1 = 'Dummy'
     clf2 = 'LinearReg'  # control
 
     # for m in modes:
-    for m in ['avg_vector']:
-        mode_data_1 = data[(data['clf'] == clf1) & (data['mode'] == mode)][metric]
-        mode_data_2 = data[(data['clf'] == clf2) & (data['mode'] == m)][metric]
-        stat, p_val = ttest_ind(mode_data_1, mode_data_2)
-        U1, p_val_mann = mannwhitneyu(mode_data_1, mode_data_2)
-        n1, n2 = len(mode_data_1), len(mode_data_2)
-        U2 = (n1 * n2) - U1
-        z_mann = (U1 + 0.5) - (((U1+U2)/2) / math.sqrt((n1*n2*(n1+n2+1))/12))
-        effect_mann = U1/(n1*n2)
-        cliff_d = ((2*U1)/(n1*n2)) - 1
-        # effect_mann = stat_mann / math.sqrt(len(mode_data_1) * len(mode_data_2))
+    # for m in modes:
+    mode_data_1 = data[(data['clf'] == clf1) & (data['mode'] == mode)][metric]
+    mode_data_2 = data[(data['clf'] == clf2) & (data['mode'] == mode)][metric]
+    stat, p_val = ttest_ind(mode_data_1, mode_data_2)
+    U1, p_val_mann = mannwhitneyu(mode_data_1, mode_data_2)
+    n1, n2 = len(mode_data_1), len(mode_data_2)
+    U2 = (n1 * n2) - U1
+    z_mann = (U1 + 0.5) - (((U1+U2)/2) / math.sqrt((n1*n2*(n1+n2+1))/12))
+    effect_mann = U1/(n1*n2)
+    cliff_d = ((2*U1)/(n1*n2)) - 1
+    # effect_mann = stat_mann / math.sqrt(len(mode_data_1) * len(mode_data_2))
 
-        # cohen's effect sizes
-        mean1 = mode_data_1.mean()
-        mean2 = mode_data_2.mean()
+    # cohen's effect sizes
+    mean1 = mode_data_1.mean()
+    mean2 = mode_data_2.mean()
 
-        std1 = mode_data_1.std()
-        std2 = mode_data_2.std()
-        pooled_sd = math.sqrt((std1 ** 2 + std2 ** 2) / 2)
+    std1 = mode_data_1.std()
+    std2 = mode_data_2.std()
+    pooled_sd = math.sqrt((std1 ** 2 + std2 ** 2) / 2)
 
-        # this will give negative values. In our case, lower is better for mean abs error
-        # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
-        cohen_d = (mean2 - mean1) / pooled_sd
+    # this will give negative values. In our case, lower is better for mean abs error
+    # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
+    cohen_d = (mean2 - mean1) / pooled_sd
 
-        # pairwise_ttest_linear = pairwise_ttest_linear.append([[mode, clf1, clf2, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
-        pairwise_ttest_linear = pairwise_ttest_linear.append(
-            [[clf1, mode, m, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
+    pairwise_ttest_linear = pairwise_ttest_linear.append([[mode, clf1, clf2, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
+    # pairwise_ttest_linear = pairwise_ttest_linear.append(
+    #     [[clf1, mode, m, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
 
 pairwise_ttest_linear.columns = ttest_cols
 # pairwise_ttest_linear.to_csv(os.path.join(stat_path, 'pairwise_t_test_linear_reg_vs_dummy.csv'))

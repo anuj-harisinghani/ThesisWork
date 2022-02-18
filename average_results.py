@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-result_path = os.path.join('results')
+result_path = os.path.join('results_new', 'pixel')
 cwm_csv = '{}_{}_{}.csv'
 cwm_png = '{}_{}_{}.png'
 
@@ -38,8 +38,6 @@ def plot_all_averaged_models(window_iter, mode, clfs):
     # clfs = [i for i in os.listdir(result_path) if len(i.split('.')) < 2 and
     #       len(os.listdir(os.path.join(result_path, i))) > 10]
 
-    if window_iter > 20:
-        clfs = ['GradBoost', 'KNN', 'AdaBoost', 'Bagging', 'Dummy', 'LinearReg']
     clfs_paths = [os.path.join(result_path, c) for c in clfs]
 
     filenames = [cwm_csv.format(c, window_iter, mode) for c in clfs]

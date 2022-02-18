@@ -18,7 +18,8 @@ if os.name == 'nt':
     baseline_processed = r"C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze"
     eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/"
+    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_mm/"
+    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_px/"
     n_jobs = 6
 
 elif os.name == 'posix':
@@ -26,7 +27,8 @@ elif os.name == 'posix':
     baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_mm'
+    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_px'
     n_jobs = -1
 
 if not os.path.exists(data_saving_path):
@@ -136,7 +138,10 @@ for pid in tqdm(valid_pids):
         'EyePosLeftZ (ADCSmm)',
         'EyePosRightX (ADCSmm)',
         'EyePosRightY (ADCSmm)',
-        'EyePosRightZ (ADCSmm)'
+        'EyePosRightZ (ADCSmm)',
+
+        'DistanceLeft',
+        'DistanceRight'
     ]  # experimenting with these columns, more columns will be added if needed
     eye_data_selected = eye_data_pid[eye_data_columns_of_interest]
 
@@ -235,7 +240,8 @@ for pid in tqdm(valid_pids):
     tobii_ADCSpx_cols = ['RecordingTimestamp']
 
     openface_input_cols.extend([i for i in extracted_data.columns if i.startswith('gaze')])
-    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
+    # tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
+    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSmm)')])
 
     ts_start = eye_data_selected['RecordingTimestamp'][start_index + 1]
     all_tobii_ts_from_start = np.array(eye_data_selected['RecordingTimestamp']) - ts_start
@@ -317,6 +323,7 @@ meta_data_pd = pd.DataFrame(np.array(meta_data), columns=meta_data_cols)
 meta_data_pd.to_csv(os.path.join(data_saving_path, 'meta_data.csv'))
 
 lens = meta_data_pd['Num masked data points']
+lens = lens.astype(int)
 # outlier removal on 2 standard deviations
 l2 = lens.mean() - 2 * lens.std()
 u2 = lens.mean() + 2 * lens.std()
