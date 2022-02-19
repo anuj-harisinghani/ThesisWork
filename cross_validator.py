@@ -1,3 +1,4 @@
+from ParamsHandler import ParamsHandler
 from ModelHandler import ClassifiersFactory
 from average_results import average_results, plot_all_averaged_models
 
@@ -10,7 +11,6 @@ import warnings
 import random
 from multiprocessing import Pool
 
-from sklearn.model_selection import RepeatedKFold, GroupKFold, cross_val_score, train_test_split, cross_validate
 from sklearn.multioutput import MultiOutputRegressor, RegressorChain
 from sklearn.metrics import accuracy_score, mean_absolute_error
 
@@ -46,31 +46,6 @@ max_timestamp = max(meta_data[meta_mask]['Max TS'])
 min_timestamp = min(meta_data[meta_mask]['Min TS'])
 n_timesteps = int((max_timestamp - min_timestamp) * 10)
 
-# for pid in valid_pids:
-#     pid_path = os.path.join(data_saving_path, pid)
-#     # Unnamed column crept in when making these files, remove them by using [:, 1:]
-#     pid_input = pd.read_csv(os.path.join(pid_path, 'masked_input.csv'))
-#     pid_output = pd.read_csv(os.path.join(pid_path, 'masked_output.csv'))
-#     ip_cols = list(pid_input.columns)  # 8 columns
-#     op_cols = list(pid_output.columns)  # 6 columns
-#
-#     # for taking all 8 columns in input, and 2 columns in output
-#     x = np.array(pid_input)[:, 1:]
-#     y = np.array(pid_output)[:, -2:]
-#
-#     # for taking only gaze angle (x and y) as input, and gaze coordinate (x and y) as output
-#     # x = np.array(pid_input)[:, -2:]
-#     # y = np.array(pid_output)[:, -2:]
-#
-#     # model = DecisionTreeRegressor()
-#     # model = KNeighborsRegressor()
-#     # model = LinearSVR()
-#     # model = LogisticRegression()
-#     model = RandomForestRegressor()
-#     model = MultiOutputRegressor(model)
-#     cv = RepeatedKFold(n_splits=100, n_repeats=10, random_state=1)
-#     n_scores = np.absolute(cross_val_score(model, x, y, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1))
-#     np.mean(n_scores)
 
 ip_cols = [
     'timestamp',
@@ -328,14 +303,15 @@ def try_multi(idx, mode, clf):
         error = mean_absolute_error(y_true=test_window_y, y_pred=window_preds)
         train_mean_errors.append(np.mean(error))
 
-    plt.clf()
-    plt.title('{} {} {}'.format(clf, window_iter, mode))
-    plt.xlabel('window size')
-    plt.ylabel('mean error')
-    plt.plot(windows, train_mean_errors)
-    print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
-    plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
-    plt.close()
+    # plot errors for each fold - no need to plot for each fold. Just get error files.
+    # plt.clf()
+    # plt.title('{} {} {}'.format(clf, window_iter, mode))
+    # plt.xlabel('window size')
+    # plt.ylabel('mean error')
+    # plt.plot(windows, train_mean_errors)
+    # print('saving plot {}_{}_{}.png'.format(clf, window_iter, mode))
+    # plt.savefig(os.path.join(fold_path, '{}_{}_{}.png'.format(clf, window_iter, mode)))
+    # plt.close()
 
     error_filename = os.path.join(fold_path, '{}_{}_{}.csv'.format(clf, window_iter, mode))
     pd.DataFrame(train_mean_errors, columns=['mean absolute error'], index=windows).to_csv(error_filename)
