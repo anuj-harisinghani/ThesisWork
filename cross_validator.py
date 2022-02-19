@@ -16,6 +16,37 @@ from sklearn.metrics import accuracy_score, mean_absolute_error
 
 warnings.filterwarnings("ignore")
 
+
+def main():
+    params = ParamsHandler.load_parameters('settings')
+
+    # experiment variables
+    dataset = params['dataset']
+    mode = params['mode']
+    classifiers = params['classifiers']
+    subsets = params['subsets']  # modes
+    seeds = params['seeds']
+    n_folds = params['folds']
+
+    # paths
+    paths = params['paths'][os.name]
+    input = paths['input']      # baseline_processed
+    output = paths['output']    # eye_data_path
+    diag = paths['plog']
+    data = os.path.join(paths['data'], mode)
+    results = os.path.join('results', mode)
+
+    # multiprocessing
+    mp_flag = params['multiprocessing']
+    n_cores = params['n_cores']
+
+
+
+
+
+
+
+
 dataset = 'Baseline'
 result_path = os.path.join('results')
 data_saving_path = None
