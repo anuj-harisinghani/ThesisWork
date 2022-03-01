@@ -334,9 +334,9 @@ for pid in tqdm(valid_pids):
 
     # save data
     pid_input_df = pd.DataFrame(nan_removed_input, columns=openface_input_cols)
-    pid_input_df.to_csv(os.path.join(pid_saving_path, 'masked_input.csv'))
+    pid_input_df.to_csv(os.path.join(pid_saving_path, 'masked_input.csv'), index=None)
     pid_output_df = pd.DataFrame(nan_removed_output, columns=tobii_ADCSpx_cols)
-    pid_output_df.to_csv(os.path.join(pid_saving_path, 'masked_output.csv'))
+    pid_output_df.to_csv(os.path.join(pid_saving_path, 'masked_output.csv'), index=None)
 
 
 valid_pids2 = np.intersect1d(valid_pids, ttf['StudyID'].unique())
@@ -360,9 +360,9 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
     #     continue
 
     pid_input_from_pupil = pid_input_df.iloc[start_index_from_pupil:]
-    pid_input_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_input.csv'))
+    pid_input_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_input.csv'), index=None)
     pid_output_from_pupil = pid_output_df.iloc[start_index_from_pupil:]
-    pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'))
+    pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'), index=None)
 
 
 # md = pd.concat(meta_data)
