@@ -41,117 +41,129 @@ def main():
     n_cores = params['n_cores']
 
 
+    # meta-data processing: to get outliers
+    meta_data = pd.read_csv(os.path.join(data, 'meta_data_outliers.csv'))
+    meta_mask = meta_data['outlier?'] == False
+    valid_pids = list(meta_data[meta_mask]['PID'])
+    max_timestamp = max(meta_data[meta_mask]['Max TS'])
+    min_timestamp = min(meta_data[meta_mask]['Min TS'])
+    n_timesteps = int((max_timestamp - min_timestamp) * 10)
 
+    features = ParamsHandler.load_parameters('features')
+    ip_cols = features['input']
+    op_cols = features['output'][mode]
 
+    input_data, output_data, all_data = get_data()
 
+# dataset = 'Baseline'
+# result_path = os.path.join('results')
+# data_saving_path = None
+# n_jobs = None
+#
+# if os.name == 'nt':
+#     baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
+#     eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
+#     diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
+#     data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_mm/"
+#     # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_px/"
+#     n_jobs = 6
+#
+# elif os.name == 'posix':
+#     processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
+#     baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
+#     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
+#     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
+#     data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_mm'
+#     # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_px'
+#     n_jobs = -1
+#
+# # get valid pids from meta_data based on outlier or not
+# meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
+# meta_mask = meta_data['outlier?'] == False
+# valid_pids = list(meta_data[meta_mask]['PID'])
+# max_timestamp = max(meta_data[meta_mask]['Max TS'])
+# min_timestamp = min(meta_data[meta_mask]['Min TS'])
+# n_timesteps = int((max_timestamp - min_timestamp) * 10)
 
-
-
-dataset = 'Baseline'
-result_path = os.path.join('results')
-data_saving_path = None
-n_jobs = None
-
-if os.name == 'nt':
-    baseline_processed = 'C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze'
-    eye_data_path = 'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
-    diagnosis_file_path = 'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_mm/"
-    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_px/"
-    n_jobs = 6
-
-elif os.name == 'posix':
-    processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
-    baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
-    eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
-    diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_mm'
-    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_px'
-    n_jobs = -1
-
-# get valid pids from meta_data based on outlier or not
-meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
-meta_mask = meta_data['outlier?'] == False
-valid_pids = list(meta_data[meta_mask]['PID'])
-max_timestamp = max(meta_data[meta_mask]['Max TS'])
-min_timestamp = min(meta_data[meta_mask]['Min TS'])
-n_timesteps = int((max_timestamp - min_timestamp) * 10)
-
-
-ip_cols = [
-    'timestamp',
-    'gaze_0_x',
-    'gaze_0_y',
-    'gaze_0_z',
-    'gaze_1_x',
-    'gaze_1_y',
-    'gaze_1_z',
-    'gaze_angle_x',
-    'gaze_angle_y']  # 9 columns
-
-# pixels output
+# ip_cols = [
+#     'timestamp',
+#     'gaze_0_x',
+#     'gaze_0_y',
+#     'gaze_0_z',
+#     'gaze_1_x',
+#     'gaze_1_y',
+#     'gaze_1_z',
+#     'gaze_angle_x',
+#     'gaze_angle_y']  # 9 columns
+#
+# # pixels output
+# # op_cols = [
+# #     'timestamp',
+# #     'GazePointLeftX (ADCSpx)',
+# #     'GazePointLeftY (ADCSpx)',
+# #     'GazePointRightX (ADCSpx)',
+# #     'GazePointRightY (ADCSpx)',
+# #     'GazePointX (ADCSpx)',
+# #     'GazePointY (ADCSpx)']  # 7 columns
+#
+# # mm output
 # op_cols = [
 #     'timestamp',
-#     'GazePointLeftX (ADCSpx)',
-#     'GazePointLeftY (ADCSpx)',
-#     'GazePointRightX (ADCSpx)',
-#     'GazePointRightY (ADCSpx)',
-#     'GazePointX (ADCSpx)',
-#     'GazePointY (ADCSpx)']  # 7 columns
+#     'GazePointLeftX (ADCSmm)',
+#     'GazePointLeftY (ADCSmm)',
+#     'GazePointRightX (ADCSmm)',
+#     'GazePointRightY (ADCSmm)',
+#     'StrictAverageGazePointX (ADCSmm)',
+#     'StrictAverageGazePointY (ADCSmm)']  # 7 columns
 
-# mm output
-op_cols = [
-    'timestamp',
-    'GazePointLeftX (ADCSmm)',
-    'GazePointLeftY (ADCSmm)',
-    'GazePointRightX (ADCSmm)',
-    'GazePointRightY (ADCSmm)',
-    'StrictAverageGazePointX (ADCSmm)',
-    'StrictAverageGazePointY (ADCSmm)']  # 7 columns
 
-input_data = []
-output_data = []
-all_data = []
+def get_data(ip_cols, op_cols, valid_pids, nfolds, data):
+    input_data = []
+    output_data = []
+    all_data = []
 
-nip = len(ip_cols) - 1
-nop = len(op_cols) - 1
+    nip = len(ip_cols) - 1
+    nop = len(op_cols) - 1
 
-# creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
-random_seed = 0
-nfolds = 10
-random.Random(random_seed).shuffle(valid_pids)
-test_splits = np.array_split(valid_pids, nfolds)
-train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
+    # creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
+    random_seed = 0
+    nfolds = 10
+    random.Random(random_seed).shuffle(valid_pids)
+    test_splits = np.array_split(valid_pids, nfolds)
+    train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
 
-pid_all_data = {}
+    pid_all_data = {}
 
-for pid in valid_pids:
-    pid_path = os.path.join(data_saving_path, pid)
-    # Unnamed column crept in when making these files, remove them by using [:, 1:]
-    pid_input = pd.read_csv(os.path.join(pid_path, 'masked_input.csv'))
-    pid_output = pd.read_csv(os.path.join(pid_path, 'masked_output.csv'))
+    for pid in valid_pids:
+        pid_path = os.path.join(data, pid)
+        # Unnamed column crept in when making these files, remove them by using [:, 1:]
+        pid_input = pd.read_csv(os.path.join(pid_path, 'masked_input.csv'))
+        pid_output = pd.read_csv(os.path.join(pid_path, 'masked_output.csv'))
 
-    # for taking all columns except Unnamed column
-    x = np.array(pid_input)[:, 1:]
-    y = np.array(pid_output)[:, 1:]
+        # for taking all columns except Unnamed column
+        x = np.array(pid_input)[:, 1:]
+        y = np.array(pid_output)[:, 1:]
 
-    t_x = np.zeros(shape=(n_timesteps, nip))
-    t_y = np.zeros(shape=(n_timesteps, nop))
-    for t in tqdm(range(n_timesteps), desc=pid):
-        if t / 10 in x[:, 0]:  # t/10 will also be in y[:,0], and most probably in the same location
-            ind = np.argwhere(x[:, 0] == t / 10)[0][0]
-            t_x[t] = x[ind][1:]
-            # t_y[t] = y[ind][1:]
-            t_y[t] = y[ind][1:len(op_cols)]
+        t_x = np.zeros(shape=(n_timesteps, nip))
+        t_y = np.zeros(shape=(n_timesteps, nop))
+        for t in tqdm(range(n_timesteps), desc=pid):
+            if t / 10 in x[:, 0]:  # t/10 will also be in y[:,0], and most probably in the same location
+                ind = np.argwhere(x[:, 0] == t / 10)[0][0]
+                t_x[t] = x[ind][1:]
+                # t_y[t] = y[ind][1:]
+                t_y[t] = y[ind][1:len(op_cols)]
 
-    input_data.append(t_x)
-    output_data.append(t_y)
-    all_data.append(np.append(t_x, t_y, axis=1))
-    pid_all_data[pid] = np.append(t_x, t_y, axis=1)
+        input_data.append(t_x)
+        output_data.append(t_y)
+        all_data.append(np.append(t_x, t_y, axis=1))
+        pid_all_data[pid] = np.append(t_x, t_y, axis=1)
 
-input_data = np.array(input_data)
-output_data = np.array(output_data)
-all_data = np.array(all_data)
+    input_data = np.array(input_data)
+    output_data = np.array(output_data)
+    all_data = np.array(all_data)
+
+    return input_data, output_data, all_data
+
 
 '''
 after this above code, the dataset should be in a 3 dimensional array

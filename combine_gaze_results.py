@@ -4,7 +4,9 @@ import pandas as pd
 from tqdm import tqdm
 # import moviepy.editor
 import matplotlib.pyplot as plt
+import warnings
 
+warnings.filterwarnings("ignore")
 
 dataset = 'Baseline'
 result_path = os.path.join('results')
@@ -13,13 +15,15 @@ diagnosis_file_path = None
 baseline_processed = None
 eye_data_path = None
 n_jobs = None
+tts_path = None
 
 if os.name == 'nt':
     baseline_processed = r"C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze"
     eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_mm/"
-    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data_px/"
+    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/mm"
+    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/pixel"
+    tts_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
     n_jobs = 6
 
 elif os.name == 'posix':
@@ -27,8 +31,9 @@ elif os.name == 'posix':
     baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_mm'
-    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data_px'
+    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/mm'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/pixel'
+    tts_path = '/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv'
     n_jobs = -1
 
 if not os.path.exists(data_saving_path):
@@ -52,6 +57,13 @@ valid_pids = np.setdiff1d(valid_pids, incompatible_pids)
 # metadata
 meta_data = []
 meta_data_cols = ['PID', 'Total TS error', 'Mean TS error', 'Num masked data points', 'Min TS', 'Max TS']
+
+
+# taskstimestamps.csv
+ttf = pd.read_csv(tts_path)
+ttf_cols = list(ttf.columns)
+og_cols = ttf_cols[2:4]
+bip_cols = ttf_cols[6:8]
 
 
 for pid in tqdm(valid_pids):
@@ -240,8 +252,8 @@ for pid in tqdm(valid_pids):
     tobii_ADCSpx_cols = ['RecordingTimestamp']
 
     openface_input_cols.extend([i for i in extracted_data.columns if i.startswith('gaze')])
-    # tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
-    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSmm)')])
+    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
+    # tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSmm)')])
 
     ts_start = eye_data_selected['RecordingTimestamp'][start_index + 1]
     all_tobii_ts_from_start = np.array(eye_data_selected['RecordingTimestamp']) - ts_start
@@ -280,6 +292,10 @@ for pid in tqdm(valid_pids):
     pid_input = np.array(pid_input)
     pid_output = np.array(pid_output)
 
+    # adding 'RecordingTimestamp' from pid_output to pid_input
+    pid_input = np.append(pid_input, pid_output[:, 0].reshape(len(pid_output), 1), axis=1)
+    openface_input_cols.append('RecordingTimestamp')
+
     # making the timestamp values the same in input and output. To be used later when getting data from
     # different windows of timings
     pid_output[:, 0] = pid_input[:, 0]
@@ -308,14 +324,30 @@ for pid in tqdm(valid_pids):
     if not os.path.exists(pid_saving_path):
         os.mkdir(pid_saving_path)
 
-    if os.path.exists(os.path.join(pid_saving_path, 'masked_input.csv')) and \
-            os.path.exists(os.path.join(pid_saving_path, 'masked_output.csv')):
-        continue
+    # if os.path.exists(os.path.join(pid_saving_path, 'masked_input.csv')) and \
+    #         os.path.exists(os.path.join(pid_saving_path, 'masked_output.csv')):
+    #     continue
 
     pid_input_df = pd.DataFrame(nan_removed_input, columns=openface_input_cols)
     pid_input_df.to_csv(os.path.join(pid_saving_path, 'masked_input.csv'))
     pid_output_df = pd.DataFrame(nan_removed_output, columns=tobii_ADCSpx_cols)
     pid_output_df.to_csv(os.path.join(pid_saving_path, 'masked_output.csv'))
+
+    # getting data that starts after PupilCalib starts
+    pid_timings = ttf[ttf['StudyID'] == pid]
+    og_start = pid_timings['timestampIni'].iloc[0]
+    start_index_from_pupil = np.argmin(abs(pid_input_df['RecordingTimestamp'] - og_start))
+
+    # if os.path.exists(os.path.join(pid_saving_path, 'from_pupil_input.csv')) and \
+    #         os.path.exists(os.path.join(pid_saving_path, 'from_pupil_output.csv')):
+    #     continue
+
+    pid_input_from_pupil = pid_input_df.iloc[start_index_from_pupil:, ]
+    pid_input_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_input.csv'))
+    pid_output_from_pupil = pid_output_df.iloc[start_index_from_pupil:, ]
+    pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'))
+
+
 
 
 # md = pd.concat(meta_data)

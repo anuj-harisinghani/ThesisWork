@@ -9,6 +9,9 @@ folds: 10
 # dataset: "Baseline" or "Follow-up"
 dataset: "Baseline"
 
+# tasks: ["PupilCalib", "CookieTheft", "Reading", "Memory"]
+tasks: ["PupilCalib", "CookieTheft", "Reading", "Memory"]
+
 # output type: "pixel" or "mm"
 mode: "mm"
 

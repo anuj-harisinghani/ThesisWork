@@ -4,43 +4,48 @@ import pandas as pd
 from tqdm import tqdm
 # import moviepy.editor
 import matplotlib.pyplot as plt
+from ParamsHandler import ParamsHandler
 
 
-dataset = 'Baseline'
-result_path = os.path.join('results')
-data_saving_path = None
-diagnosis_file_path = None
-baseline_processed = None
-eye_data_path = None
-n_jobs = None
+params = ParamsHandler.load_parameters('settings')
+
+# experiment variables
+dataset = params['dataset']
+tasks = params['tasks']
+mode = params['mode']
+classifiers = params['classifiers']
+subsets = params['subsets']  # modes
+seeds = params['seeds']
+n_folds = params['folds']
+
+# paths
+paths = params['paths'][os.name]
+input = paths['input']      # baseline_processed
+output = paths['output']    # eye_data_path
+diag = paths['plog']
+data = os.path.join(paths['data'], mode)
+results = os.path.join('results', mode)
+
+# multiprocessing
+mp_flag = params['multiprocessing']
+n_cores = params['n_cores']
 
 task_timestamps_file = None
 task_save_path = None
-tasks = ['PupilCalib', 'CookieTheft', 'Reading', 'Memory']
 task_save_folder_paths = None
 
 if os.name == 'nt':
-    baseline_processed = r"C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze"
-    eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
-    diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data4/"
-    n_jobs = 6
-
     task_timestamps_file = r"C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
     task_save_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/task_data"
     task_save_folder_paths = {task: os.path.join(task_save_path, task) for task in tasks}
 
 elif os.name == 'posix':
-    processed_files_path = '/home/anuj/OpenFace2/OpenFace/build/processed/'
-    baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
-    eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
-    diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data4'
-    task_timestamps_file = '/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv'
-    n_jobs = -1
+    task_timestamps_file = "/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv"
+    task_save_path = "/home/anuj/Documents/CANARY_Baseline/task_data"
+    task_save_folder_paths = {task: os.path.join(task_save_path, task) for task in tasks}
 
-if not os.path.exists(data_saving_path):
-    os.mkdir(data_saving_path)
+if not os.path.exists(data):
+    os.mkdir(data)
 
 # tasks
 for task in tasks:
@@ -53,7 +58,7 @@ input_data = []
 output_data = []
 
 # valid_pids from meta_data outliers
-meta_data = pd.read_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
+meta_data = pd.read_csv(os.path.join(data, 'meta_data_outliers.csv'))
 meta_mask = meta_data['outlier?'] == False
 valid_pids = list(meta_data[meta_mask]['PID'])
 

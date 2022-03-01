@@ -1,0 +1,31 @@
+# features.yaml
+
+# input features
+input: [
+    'timestamp',
+    'gaze_0_x',
+    'gaze_0_y',
+    'gaze_0_z',
+    'gaze_1_x',
+    'gaze_1_y',
+    'gaze_1_z',
+    'gaze_angle_x',
+    'gaze_angle_y']
+
+output: {
+  "mm": [
+    'timestamp',
+    'GazePointLeftX (ADCSmm)',
+    'GazePointLeftY (ADCSmm)',
+    'GazePointRightX (ADCSmm)',
+    'GazePointRightY (ADCSmm)',
+    'StrictAverageGazePointX (ADCSmm)',
+    'StrictAverageGazePointY (ADCSmm)'],
+  "pixel": [
+    'timestamp',
+    'GazePointLeftX (ADCSpx)',
+    'GazePointLeftY (ADCSpx)',
+    'GazePointRightX (ADCSpx)',
+    'GazePointRightY (ADCSpx)',
+    'GazePointX (ADCSpx)',
+    'GazePointY (ADCSpx)']}
