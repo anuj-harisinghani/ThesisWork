@@ -351,18 +351,33 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
 
     # getting data that starts after PupilCalib starts
     pid_timings = ttf[ttf['StudyID'] == pid]
-    og_start = pid_timings['timestampIni'].iloc[0]
-    start_index_from_pupil = np.argmin(abs(pid_input_df['RecordingTimestamp'] - og_start))
-    print(pid, start_index_from_pupil)
+    tasks = pid_timings['Task']
 
-    # if os.path.exists(os.path.join(pid_saving_path, 'from_pupil_input.csv')) and \
-    #         os.path.exists(os.path.join(pid_saving_path, 'from_pupil_output.csv')):
-    #     continue
+    task_only_input = pd.DataFrame(columns=pid_input_df.columns)
+    task_only_output = pd.DataFrame(columns=pid_output_df.columns)
 
-    pid_input_from_pupil = pid_input_df.iloc[start_index_from_pupil:]
-    pid_input_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_input.csv'), index=None)
-    pid_output_from_pupil = pid_output_df.iloc[start_index_from_pupil:]
-    pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'), index=None)
+    for task in tasks:
+        task_start, task_end = pid_timings[pid_timings['Task'] == task][['timestampIni', 'timestampEnd']].values[0]
+        ip_task_start = np.argmin(abs(pid_input_df['RecordingTimestamp'] - task_start))
+        ip_task_end = np.argmin(abs(pid_input_df['RecordingTimestamp'] - task_end))
+
+        task_input_data = pid_input_df.iloc[ip_task_start:ip_task_end]
+        task_only_input = task_only_input.append(task_input_data, ignore_index=True)
+
+        task_output_data = pid_output_df.iloc[ip_task_start:ip_task_end]
+        task_only_output = task_only_output.append(task_output_data, ignore_index=True)
+
+    # og_start = pid_timings['timestampIni'].iloc[0]
+    # start_index_from_pupil = np.argmin(abs(pid_input_df['RecordingTimestamp'] - og_start))
+    # print(pid, start_index_from_pupil)
+
+    # pid_input_from_pupil = pid_input_df.iloc[start_index_from_pupil:]
+    # pid_input_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_input.csv'), index=None)
+    # pid_output_from_pupil = pid_output_df.iloc[start_index_from_pupil:]
+    # pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'), index=None)
+
+    task_only_input.to_csv(os.path.join(pid_saving_path, 'within_tasks_input.csv'), index=None)
+    task_only_output.to_csv(os.path.join(pid_saving_path, 'within_tasks_output.csv'), index=None)
 
 
 # md = pd.concat(meta_data)

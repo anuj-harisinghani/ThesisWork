@@ -3,6 +3,8 @@ import pandas as pd
 import seaborn as sns
 import math
 
+from ParamsHandler import ParamsHandler
+
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
@@ -15,17 +17,197 @@ from scipy.stats import mannwhitneyu
 # This is a two-sided test for the null hypothesis that 2 related or repeated samples have identical average (expected) values.
 '''
 
+
+
+params = ParamsHandler.load_parameters('settings')
+mode = params['mode']
+subsets = params['subsets']
+clfs = params['classifiers']
+
+stat_path = os.path.join('stats', mode)
+result_path = os.path.join('results', mode)
+
+"""
+LR vs Dummy ------------------------------------------------------------------------------------------------------------
+"""
+    # grouped bar plot
+data = pd.read_csv(os.path.join(result_path, 'errors_across_seeds_unaveraged.csv'))
+g = sns.catplot(data=data, kind='bar', x='strategy', y='mae', hue='clf', ci='sd')
+
+    # tukey HSD
+m_comp = pairwise_tukeyhsd(endog=data['mae'], groups=data['clf'] + " / " + data['strategy'], alpha=0.05)
+print(m_comp)
+
+tukey_data = pd.DataFrame(data=m_comp._results_table.data[1:], columns=m_comp._results_table.data[0])
+ind = [i for i in tukey_data.index if tukey_data['group1'][i].split(' / ')[-1] == tukey_data['group2'][i].split(' / ')[-1]]
+tukey = tukey_data.iloc[ind]
+tukey.to_csv(os.path.join(stat_path, 'tukey_LR_vs_dummy.csv'))
+
+    # cohen's d
+# dummy_vs_LR_means = data.groupby(['clf', 'strategy']).mean().reset_index()
+ttest_cols = ['strategy', 'clf1', 'clf2', 'effect_t']
+pairwise_ttest_linear = pd.DataFrame()
+for st in subsets:
+    # data = dummy_vs_LR_means
+    clf1 = 'Dummy'
+    clf2 = 'LinearReg'  # control
+
+    # for m in modes:
+    # for m in modes:
+    mode_data_1 = data[(data['clf'] == clf1) & (data['strategy'] == st)]['mae']
+    mode_data_2 = data[(data['clf'] == clf2) & (data['strategy'] == st)]['mae']
+    # cohen's effect sizes
+    mean1 = mode_data_1.mean()
+    mean2 = mode_data_2.mean()
+
+    std1 = mode_data_1.std()
+    std2 = mode_data_2.std()
+    pooled_sd = math.sqrt((std1 ** 2 + std2 ** 2) / 2)
+
+    # this will give negative values. In our case, lower is better for mean abs error
+    # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
+    cohen_d = (mean2 - mean1) / pooled_sd
+
+    pairwise_ttest_linear = pairwise_ttest_linear.append([[st, clf1, clf2, cohen_d]])
+    # pairwise_ttest_linear = pairwise_ttest_linear.append(
+    #     [[clf1, mode, m, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
+
+pairwise_ttest_linear.columns = ttest_cols
+pairwise_ttest_linear.to_csv(os.path.join(stat_path, 'cohens_d_dummy_vs_LR.csv'))
+
+
+"""
+LR strategies against each other ---------------------------------------------------------------------------------------
+"""
+# tukey-HSD strategies against each other for LR
+data_LR = data[data['clf'] == 'LinearReg']
+m_comp = pairwise_tukeyhsd(endog=data_LR['mae'], groups=data_LR['clf'] + " / " + data_LR['strategy'], alpha=0.05)
+print(m_comp)
+tukey_data = pd.DataFrame(data=m_comp._results_table.data[1:], columns=m_comp._results_table.data[0])
+tukey_data.to_csv(os.path.join(stat_path, 'tukey_LR_against_modes.csv'))
+
+# Cohen's D
+ttest_cols = ['clf', 'strat1', 'strat2', 'effect_t']
+pairwise_ttest_linear = pd.DataFrame()
+
+for clf1 in subsets:
+    st = 'LinearReg'
+    data = data_LR
+    for clf2 in subsets:
+        if clf1 == clf2:
+            continue
+
+        # for m in modes:
+        # for m in modes:
+        mode_data_1 = data[(data['strategy'] == clf1) & (data['clf'] == st)]['mae']
+        mode_data_2 = data[(data['strategy'] == clf2) & (data['clf'] == st)]['mae']
+        # cohen's effect sizes
+        mean1 = mode_data_1.mean()
+        mean2 = mode_data_2.mean()
+
+        std1 = mode_data_1.std()
+        std2 = mode_data_2.std()
+        pooled_sd = math.sqrt((std1 ** 2 + std2 ** 2) / 2)
+
+        # this will give negative values. In our case, lower is better for mean abs error
+        # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
+        cohen_d = (mean2 - mean1) / pooled_sd
+
+        pairwise_ttest_linear = pairwise_ttest_linear.append([[st, clf1, clf2, cohen_d]])
+    # pairwise_ttest_linear = pairwise_ttest_linear.append(
+    #     [[clf1, mode, m, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
+
+pairwise_ttest_linear.columns = ttest_cols
+pairwise_ttest_linear.to_csv(os.path.join(stat_path, 'cohens_d_LR_against_strategies.csv'))
+
+"""
+old window results against new results ---------------------------------------------------------------------------------
+"""
+
+# tukey-HSD for old (window) results against no-window starting from pupil results
+old_path = r"C:\Users\Anuj\PycharmProjects\ThesisWork\backup\window_results\mm"
+old_files = [i for i in os.listdir(old_path) if i.startswith('across_all_models_80')]
+old_filepaths = [os.path.join(old_path, i) for i in old_files if i.endswith('.csv')]
+
+old_data = []
+for f in old_filepaths:
+    file = pd.read_csv(f)
+    if f.split('/')[-1].split('_')[-2] == 'avg':
+        strat = 'avg'
+    elif f.split('/')[-1].split('_')[-2] == 'all':
+        strat = 'all'
+    elif f.split('/')[-1].split('_')[-2] == 'both':
+        strat = 'both_eyes'
+    else:
+        strat = f.split('/')[-1].split('_')[-1].split('.')[0]
+
+    for val in file['LinearReg']:
+        old_data.append([val, strat, 'old'])
+
+old_d = pd.DataFrame(old_data, columns=['mae', 'strat', 'which'])
+
+data_new = []
+for i in range(len(data_LR)):
+    row = data_LR.iloc[i]
+    data_new.append([row['mae'], row['strategy'], 'new'])
+
+data_n = pd.DataFrame(data_new, columns=['mae', 'strat', 'which'])
+data_o_n = old_d.append(data_n, ignore_index=True)
+
+# bar plot
+g = sns.catplot(data=data_o_n, kind='bar', x='strat', y='mae', hue='which', ci='sd')
+
+# Tukey HSD
+m_comp = pairwise_tukeyhsd(endog=data_o_n['mae'], groups=data_o_n['which'] + " / " + data_o_n['strat'], alpha=0.05)
+print(m_comp)
+
+tukey_data = pd.DataFrame(data=m_comp._results_table.data[1:], columns=m_comp._results_table.data[0])
+ind = [i for i in tukey_data.index if tukey_data['group1'][i].split(' / ')[-1] == tukey_data['group2'][i].split(' / ')[-1]]
+tukey = tukey_data.iloc[ind]
+tukey.to_csv(os.path.join(stat_path, 'tukey_LR_old_window_results_vs_new_results.csv'))
+
+# Cohens D
+ttest_cols = ['strat', 'new', 'old', 'effect_t']
+pairwise_ttest_linear = pd.DataFrame()
+
+for st in subsets:
+    data = data_o_n
+    clf1 = 'new'
+    clf2 = 'old'
+    mode_data_1 = data[(data['which'] == clf1) & (data['strat'] == st)]['mae']
+    mode_data_2 = data[(data['which'] == clf2) & (data['strat'] == st)]['mae']
+    # cohen's effect sizes
+    n1 = len(mode_data_1)
+    n2 = len(mode_data_2)
+
+    mean1 = mode_data_1.mean()
+    mean2 = mode_data_2.mean()
+
+    std1 = mode_data_1.std()
+    std2 = mode_data_2.std()
+    # pooled_sd = math.sqrt((std1 ** 2 + std2 ** 2) / 2)
+    pooled_sd = math.sqrt(((n1-1)*std1**2 + (n2-1)*std2**2) / n1+n2-2)
+
+    # this will give negative values. In our case, lower is better for mean abs error
+    # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
+    cohen_d = (mean2 - mean1) / pooled_sd
+
+    pairwise_ttest_linear = pairwise_ttest_linear.append([[st, clf1, clf2, cohen_d]])
+
+pairwise_ttest_linear.columns = ttest_cols
+pairwise_ttest_linear.to_csv(os.path.join(stat_path, 'cohens_d_LR_old_vs_new.csv'))
+
+
+"""
+================================================================================================================================
+"""
 # need independent t-test
-
-
-stat_path = os.path.join('stats')
-result_path = os.path.join('results')
 result_files = [i for i in os.listdir(result_path) if i.endswith('csv')]
 result_file_paths = [os.path.join(result_path, i) for i in result_files]
 
 rfp20 = [i for i in result_file_paths if '20' in i]  # result_file_path for those files with '20' time windows
 
-modes = ['left', 'right', 'both_eyes', 'avg_vector', 'all_vector']
+subsets = ['left', 'right', 'both_eyes', 'avg_vector', 'all_vector']
 # classifiers = ['Dummy', 'LinearReg', 'Ridge', 'Lasso']
 classifiers = ['Dummy', 'LinearReg']  # only LR
 # classifiers = ['LinearReg', 'Ridge', 'Lasso']  # only linears
@@ -33,12 +215,12 @@ classifiers = ['Dummy', 'LinearReg']  # only LR
 data = pd.DataFrame()
 data_mean = pd.DataFrame()
 data2 = pd.DataFrame()
-for mode in modes:
-    file = pd.read_csv([i for i in rfp20 if mode in i][0])
+for sub in subsets:
+    file = pd.read_csv([i for i in rfp20 if sub in i][0])
     file = file.drop(file.columns[0], axis=1)
 
     file = file[classifiers]
-    # file['mode'] = mode
+    # file['sub'] = sub
     file2 = file.melt(value_name='mean_abs_error')
     file2 = file2.rename(columns={'variable': 'clf'})
     file2['mode'] = mode
@@ -109,7 +291,7 @@ ttest_cols = ['mode', 'clf1', 'clf2', 'statistic_t', 'p_val_t', 'effect_t', 'U1_
 pairwise_ttest_linear = pd.DataFrame()
 clfs_no_dummy = classifiers
 data = data2  # ['LinearReg', 'Ridge', 'Lasso']
-for mode in modes:
+for mode in subsets:
     # for clf1 in clfs_no_dummy:
     #     for clf2 in clfs_no_dummy:
     #         if clf1 == clf2:
