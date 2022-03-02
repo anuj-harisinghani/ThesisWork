@@ -32,8 +32,8 @@ def get_data(valid_pids):
 
     for pid in valid_pids:
         pid_path = os.path.join(data, pid)
-        pid_input = pd.read_csv(os.path.join(pid_path, 'from_pupil_input.csv'))
-        pid_output = pd.read_csv(os.path.join(pid_path, 'from_pupil_output.csv'))
+        pid_input = pd.read_csv(os.path.join(pid_path, 'within_tasks_input.csv'))
+        pid_output = pd.read_csv(os.path.join(pid_path, 'within_tasks_output.csv'))
 
         x = np.array(pid_input)
         y = np.array(pid_output)

@@ -71,6 +71,7 @@ def average_errors(mode):
         fold_file = pd.read_csv(os.path.join(result_path, seed, 'avg_errors.csv')).drop('Unnamed: 0', axis=1)
         df = df.append(fold_file, ignore_index=True)
 
+    df.to_csv(os.path.join(result_path, 'errors_across_seeds_unaveraged.csv'))
     avg_across_seeds = df.groupby(['clf', 'strategy']).mean().reset_index()
     avg_across_seeds.to_csv(os.path.join(result_path, 'errors_across_seeds.csv'))
 

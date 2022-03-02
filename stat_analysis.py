@@ -17,8 +17,6 @@ from scipy.stats import mannwhitneyu
 # This is a two-sided test for the null hypothesis that 2 related or repeated samples have identical average (expected) values.
 '''
 
-
-
 params = ParamsHandler.load_parameters('settings')
 mode = params['mode']
 subsets = params['subsets']
@@ -26,6 +24,9 @@ clfs = params['classifiers']
 
 stat_path = os.path.join('stats', mode)
 result_path = os.path.join('results', mode)
+
+if not os.path.exists(stat_path):
+    os.mkdir(stat_path)
 
 """
 LR vs Dummy ------------------------------------------------------------------------------------------------------------
