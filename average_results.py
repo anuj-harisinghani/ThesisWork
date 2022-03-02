@@ -60,3 +60,19 @@ def plot_all_averaged_models(window_iter, mode, clfs):
     print('saving plot {}_{}.png'.format(window_iter, mode))
     plt.savefig(os.path.join(result_path, 'across_all_models_{}_{}.png'.format(window_iter, mode)))
     plt.close()
+
+
+def average_errors(mode):
+    result_path = os.path.join('results', mode)
+    folders = [i for i in os.listdir(result_path) if os.path.isdir(os.path.join(result_path, i))]
+
+    df = pd.DataFrame(columns=['clf', 'strategy', 'mae'])
+    for seed in folders:
+        fold_file = pd.read_csv(os.path.join(result_path, seed, 'avg_errors.csv')).drop('Unnamed: 0', axis=1)
+        df = df.append(fold_file, ignore_index=True)
+
+    avg_across_seeds = df.groupby(['clf', 'strategy']).mean().reset_index()
+    avg_across_seeds.to_csv(os.path.join(result_path, 'errors_across_seeds.csv'))
+
+
+

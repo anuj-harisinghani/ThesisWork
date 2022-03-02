@@ -26,7 +26,7 @@ def main():
     classifiers = params['classifiers']
     subsets = params['subsets']  # modes
     seeds = params['seeds']
-    n_folds = params['folds']
+    nfolds = params['folds']
 
     # paths
     paths = params['paths'][os.name]
@@ -40,20 +40,22 @@ def main():
     mp_flag = params['multiprocessing']
     n_cores = params['n_cores']
 
-
     # meta-data processing: to get outliers
-    meta_data = pd.read_csv(os.path.join(data, 'meta_data_outliers.csv'))
-    meta_mask = meta_data['outlier?'] == False
-    valid_pids = list(meta_data[meta_mask]['PID'])
-    max_timestamp = max(meta_data[meta_mask]['Max TS'])
-    min_timestamp = min(meta_data[meta_mask]['Min TS'])
+    # meta_data = pd.read_csv(os.path.join(data, 'meta_data_outliers.csv'))
+    # meta_mask = meta_data['outlier?'] == False
+    ttf = pd.read_csv(os.path.join())
+
+    meta_data = pd.read_csv(os.path.join(data, 'meta_data.csv'))
+    valid_pids = list(meta_data['PID'])
+    max_timestamp = max(meta_data['Max TS'])
+    min_timestamp = min(meta_data['Min TS'])
     n_timesteps = int((max_timestamp - min_timestamp) * 10)
 
     features = ParamsHandler.load_parameters('features')
     ip_cols = features['input']
     op_cols = features['output'][mode]
 
-    input_data, output_data, all_data = get_data()
+    input_data, output_data, all_data = get_data(ip_cols, op_cols, valid_pids, nfolds, data, n_timesteps)
 
 # dataset = 'Baseline'
 # result_path = os.path.join('results')
@@ -117,7 +119,7 @@ def main():
 #     'StrictAverageGazePointY (ADCSmm)']  # 7 columns
 
 
-def get_data(ip_cols, op_cols, valid_pids, nfolds, data):
+def get_data(ip_cols, op_cols, valid_pids, nfolds, data, n_timesteps):
     input_data = []
     output_data = []
     all_data = []
@@ -127,7 +129,6 @@ def get_data(ip_cols, op_cols, valid_pids, nfolds, data):
 
     # creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
     random_seed = 0
-    nfolds = 10
     random.Random(random_seed).shuffle(valid_pids)
     test_splits = np.array_split(valid_pids, nfolds)
     train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
@@ -137,8 +138,10 @@ def get_data(ip_cols, op_cols, valid_pids, nfolds, data):
     for pid in valid_pids:
         pid_path = os.path.join(data, pid)
         # Unnamed column crept in when making these files, remove them by using [:, 1:]
-        pid_input = pd.read_csv(os.path.join(pid_path, 'masked_input.csv'))
-        pid_output = pd.read_csv(os.path.join(pid_path, 'masked_output.csv'))
+        # pid_input = pd.read_csv(os.path.join(pid_path, 'masked_input.csv'))
+        # pid_output = pd.read_csv(os.path.join(pid_path, 'masked_output.csv'))
+        pid_input = pd.read_csv(os.path.join(pid_path, 'from_pupil_input.csv'))
+        pid_output = pd.read_csv(os.path.join(pid_path, 'from_pupil_output.csv'))
 
         # for taking all columns except Unnamed column
         x = np.array(pid_input)[:, 1:]
