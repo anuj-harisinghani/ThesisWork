@@ -25,7 +25,7 @@ subsets: ["left", "right", "both_eyes", "avg", "all"]
 classifiers: ["Dummy", "LinearReg"]
 
 # multiprocessing: to enable multiprocessing across seeds or not
-multiprocessing: True
+multiprocessing: False
 
 # multiprocessing number of cores
 n_cores: {"nt": 6, "posix": -1}
@@ -36,12 +36,14 @@ paths:
       { "input": "C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze",
         "output": "C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement",
         "plog": "C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv",
-        "data": "C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/"
+        "data": "C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/",
+        "ttf": "C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
       },
     "posix":
       { "input": "/home/anuj/OpenFace2/OpenFace/build/processed/Baseline/",
         "output": "/home/anuj/Documents/CANARY_Baseline/eye_movement/",
         "plog": "/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv",
-        "data": "/home/anuj/Documents/CANARY_Baseline/extracted_data/"
+        "data": "/home/anuj/Documents/CANARY_Baseline/extracted_data/",
+        "ttf": "/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv"
       }
   }
