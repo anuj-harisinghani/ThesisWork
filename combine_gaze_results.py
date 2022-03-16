@@ -21,8 +21,8 @@ if os.name == 'nt':
     baseline_processed = r"C:/Users/Anuj/Desktop/Canary/Baseline/OpenFace-eye-gaze"
     eye_data_path = r'C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement'
     diagnosis_file_path = r'C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv'
-    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/mm"
-    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/pixel"
+    # data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/mm"
+    data_saving_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/pixel"
     tts_path = r"C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
     n_jobs = 6
 
@@ -31,8 +31,8 @@ elif os.name == 'posix':
     baseline_processed = os.path.join(processed_files_path, 'Baseline', '')
     eye_data_path = '/home/anuj/Documents/CANARY_Baseline/eye_movement/'
     diagnosis_file_path = '/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv'
-    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/mm'
-    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/pixel'
+    # data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/mm'
+    data_saving_path = '/home/anuj/Documents/CANARY_Baseline/extracted_data/pixel'
     tts_path = '/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv'
     n_jobs = -1
 
@@ -264,8 +264,8 @@ for pid in tqdm(valid_pids):
     tobii_ADCSpx_cols = ['RecordingTimestamp']
 
     openface_input_cols.extend([i for i in extracted_data.columns if i.startswith('gaze')])
-    # tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
-    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSmm)')])
+    tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSpx)')])
+    # tobii_ADCSpx_cols.extend([i for i in eye_data_selected.columns if i.endswith('ADCSmm)')])
 
     ts_start = eye_data_selected['RecordingTimestamp'][start_index + 1]
     all_tobii_ts_from_start = np.array(eye_data_selected['RecordingTimestamp']) - ts_start

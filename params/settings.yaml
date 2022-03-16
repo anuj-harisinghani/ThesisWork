@@ -13,7 +13,7 @@ dataset: "Baseline"
 tasks: ["PupilCalib", "CookieTheft", "Reading", "Memory"]
 
 # output type: "pixel" or "mm"
-mode: "mm"
+mode: "pixel"
 
 # time length: the amount of seconds to choose data within - will start from the beginnning of PupilCalib
 time: 40
@@ -21,7 +21,7 @@ time: 40
 # subsets: in a list: ["left", "right", "both_eyes", "avg", "all"]
 subsets: ["left", "right", "both_eyes", "avg", "all"]
 
-# classifiers: in a list: ["Dummy", "LinearReg", "Lasso", "Ridge"]
+# classifiers: in a list: ["Dummy", "LinearReg", "NeuralNetwork", "Lasso", "Ridge"]
 classifiers: ["Dummy", "LinearReg"]
 
 # multiprocessing: to enable multiprocessing across seeds or not
@@ -37,7 +37,8 @@ paths:
         "output": "C:/Users/Anuj/Desktop/Canary/Baseline/eye_movement",
         "plog": "C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv",
         "data": "C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/",
-        "ttf": "C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv"
+        "ttf": "C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv",
+        "pred_coords": "C:/Users/Anuj/Desktop/Canary/Baseline/predicted_coordinates/"
       },
     "posix":
       { "input": "/home/anuj/OpenFace2/OpenFace/build/processed/Baseline/",

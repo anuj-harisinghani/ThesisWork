@@ -1,5 +1,6 @@
 from ParamsHandler import ParamsHandler
 from ModelHandler import ClassifiersFactory
+from FixationGenerator import fixation_detection
 from average_results import average_results, plot_all_averaged_models, average_errors
 
 import os
@@ -28,7 +29,7 @@ def get_data(valid_pids):
     features = ParamsHandler.load_parameters('features')
     op_cols = features['output'][mode]
 
-    pid_all_data = {pid: {'input': None, 'output': None} for pid in valid_pids}
+    pid_all_data = {pid: {'input': None, 'output': None, 'timestamps': None} for pid in valid_pids}
 
     for pid in valid_pids:
         pid_path = os.path.join(data, pid)
@@ -40,6 +41,12 @@ def get_data(valid_pids):
 
         pid_all_data[pid]['input'] = x[:, :-2]
         pid_all_data[pid]['output'] = y[:, 1:len(op_cols)]
+
+        timestamps = np.array(pid_input[['timestamp', 'RecordingTimestamp']])
+        ts_from_start = timestamps - timestamps[0]
+
+        pid_all_data[pid]['timestamps'] = timestamps
+        pid_all_data[pid]['ts_from_start'] = ts_from_start
 
     return pid_all_data
 
@@ -56,7 +63,7 @@ def train_test_split(pid_all_data, strategy, seed, fold):
     test_splits = np.array_split(valid_pids, nfolds)
     train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
 
-    fold_path = os.path.join(results, str(seed))
+    # fold_path = os.path.join(results, str(seed))
     # pd.DataFrame(train_splits).to_csv(os.path.join(fold_path, 'train_pids.csv'))
     # pd.DataFrame(test_splits, columns=['PID']).to_csv(os.path.join(fold_path, 'test_pids.csv'))
 
@@ -66,6 +73,12 @@ def train_test_split(pid_all_data, strategy, seed, fold):
 
     input_test = np.vstack([pid_all_data[pid]['input'] for pid in test_splits[fold]])
     output_test = np.vstack([pid_all_data[pid]['output'] for pid in test_splits[fold]])
+
+    ts_train = np.vstack([pid_all_data[pid]['timestamps'] for pid in train_splits[fold]])
+    ts_test = np.vstack([pid_all_data[pid]['timestamps'] for pid in test_splits[fold]])
+
+    ts_from_start_train = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in train_splits[fold]])
+    ts_from_start_test = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in test_splits[fold]])
 
     x_train = y_train = x_test = y_test = None
 
@@ -97,10 +110,13 @@ def train_test_split(pid_all_data, strategy, seed, fold):
     elif strategy == 'all':
         x_train = np.hstack((input_train[:, :3], input_train[:, 3:6], (input_train[:, :3] + input_train[:, 3:6])/2))
         y_train = np.hstack((output_train[:, :2], output_train[:, 2:4], (output_train[:, :2] + output_train[:, 2:4])/2))
+        # y_train = np.hstack((output_train[:, :2], output_train[:, 2:4]))
         x_test = np.hstack((input_test[:, :3], input_test[:, 3:6], (input_test[:, :3] + input_test[:, 3:6])/2))
         y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4])/2))
+        # y_test = np.hstack((output_test[:, :2], output_test[:, 2:4]))
 
-    return x_train, y_train, x_test, y_test
+    return x_train, y_train, x_test, y_test, \
+           ts_train, ts_test, ts_from_start_train, ts_from_start_test
 
 
 # try multi processing
@@ -110,19 +126,29 @@ def try_multi(pid_all_data, subsets, classifiers, seed):
     mode = params['mode']
 
     fold_results = []
+    fold_models = {s: [] for s in subsets}
     for strategy in subsets:
         for clf in classifiers:
             for fold in range(nfolds):
-                x_train, y_train, x_test, y_test = train_test_split(pid_all_data, strategy, seed, fold)
+                x_train, y_train, x_test, y_test, \
+                ts_train, ts_test, ts_from_start_train, ts_from_start_test = \
+                    train_test_split(pid_all_data, strategy, seed, fold)
 
-                model = ClassifiersFactory().get_model(clf)
-                chain = RegressorChain(base_estimator=model)
+                if clf != 'NeuralNetwork':
+                    model = ClassifiersFactory().get_model(clf)
+                    chain = RegressorChain(base_estimator=model)
+                    chain = chain.fit(x_train, y_train)
 
-                chain = chain.fit(x_train, y_train)
+                else:
+                    chain = ClassifiersFactory(9, 4).get_model(clf)
+                    chain.fit(x_train, y_train)
+
                 preds = chain.predict(x_test)
                 error = mean_absolute_error(y_true=y_test, y_pred=preds)
 
                 fold_results.append([error, clf, strategy])
+                if clf == 'LinearReg':
+                    fold_models[strategy].append(chain)
 
     result_file = pd.DataFrame(fold_results, columns=['mae', 'clf', 'strategy'])
     result_file.to_csv(os.path.join('results', mode, str(seed), 'errors.csv'))
@@ -130,7 +156,7 @@ def try_multi(pid_all_data, subsets, classifiers, seed):
     avg_folds = result_file.groupby(['clf', 'strategy']).mean().reset_index()
     avg_folds.to_csv(os.path.join('results', mode, str(seed), 'avg_errors.csv'))
 
-    return 0
+    return fold_models
 
 
 def main():
@@ -163,12 +189,12 @@ def main():
     meta_data = pd.read_csv(os.path.join(data, 'meta_data.csv'))
     valid_pids = np.intersect1d(ttf_pids, meta_data['PID'])
 
-    # get data
-    pid_all_data = get_data(valid_pids)
-
     # make output_folders
     if not os.path.exists(results):
         os.mkdir(results)
+
+    # get data
+    pid_all_data = get_data(valid_pids)
 
     output_clfs = [os.path.join(results, str(fold)) for fold in range(nfolds)]
     for oc in output_clfs:
@@ -183,11 +209,14 @@ def main():
         _ = [p.get() for p in cv]
 
     else:
+        models = []
         for seed in tqdm(range(seeds)):
-            try_multi(pid_all_data, subsets, classifiers, seed)
+            models.append(try_multi(pid_all_data, subsets, classifiers, seed))
 
     # call average errors
     average_errors(mode)
 
+    # model_save_path = os.path.join('models', mode)
+    return models
 
-main()
+# main()

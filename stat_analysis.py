@@ -46,7 +46,7 @@ tukey.to_csv(os.path.join(stat_path, 'tukey_LR_vs_dummy.csv'))
 
     # cohen's d
 # dummy_vs_LR_means = data.groupby(['clf', 'strategy']).mean().reset_index()
-ttest_cols = ['strategy', 'clf1', 'clf2', 'effect_t']
+ttest_cols = ['strategy', 'clf1', 'clf2', 'cohens d']
 pairwise_ttest_linear = pd.DataFrame()
 for st in subsets:
     # data = dummy_vs_LR_means
@@ -67,9 +67,9 @@ for st in subsets:
 
     # this will give negative values. In our case, lower is better for mean abs error
     # so instead of mean1 - mean2, we're gonna do mean2 - mean1 (not absolute)
-    cohen_d = (mean2 - mean1) / pooled_sd
+    cohen_d = (mean1 - mean2) / pooled_sd
 
-    pairwise_ttest_linear = pairwise_ttest_linear.append([[st, clf1, clf2, cohen_d]])
+    pairwise_ttest_linear = pairwise_ttest_linear.append([[st, clf1, clf2, abs(cohen_d)]])
     # pairwise_ttest_linear = pairwise_ttest_linear.append(
     #     [[clf1, mode, m, stat, p_val, cohen_d, U1, p_val_mann, effect_mann, cliff_d]])
 
@@ -126,8 +126,8 @@ old window results against new results -----------------------------------------
 """
 
 # tukey-HSD for old (window) results against no-window starting from pupil results
-old_path = r"C:\Users\Anuj\PycharmProjects\ThesisWork\backup\window_results\mm"
-old_files = [i for i in os.listdir(old_path) if i.startswith('across_all_models_80')]
+old_path = r"C:\Users\Anuj\PycharmProjects\ThesisWork\backup\window_results\pixel"
+old_files = [i for i in os.listdir(old_path) if i.startswith('across_all_models_20')]
 old_filepaths = [os.path.join(old_path, i) for i in old_files if i.endswith('.csv')]
 
 old_data = []
