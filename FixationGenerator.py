@@ -1,3 +1,8 @@
+"""
+File with Fixation detection and Saccade detection algorithms.
+Credits: https://github.com/esdalmaijer/PyGazeAnalyser/blob/master/pygazeanalyser/detectors.py
+"""
+
 import numpy as np
 
 
@@ -66,7 +71,9 @@ def remove_missing(x, y, time, missing):
     return x, y, time
 
 
-def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
+def fixation_detection(x, y, time, missing=0.0, maxdist=35, mindur=60):
+    # 60ms chosen for mindur as Tobii uses it
+    # source: https://www.tobiipro.com/siteassets/tobii-pro/learn-and-support/analyze/how-do-we-classify-eye-movements/tobii-pro-i-vt-fixation-filter.pdf/?v=2012
 
     """Detects fixations, defined as consecutive samples with an inter-sample
     distance of less than a set amount of pixels (disregarding missing data)
@@ -125,10 +132,10 @@ def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
     # add last fixation end (we can lose it if dist > maxdist is false for the last point)
     if len(Sfix) > len(Efix):
         Efix.append([Sfix[-1][0], time[len(x) - 1], time[len(x) - 1] - Sfix[-1][0], x[si], y[si]])
-    return Sfix, Efix
+    return np.array(Sfix), np.array(Efix)
 
 
-def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):
+def saccade_detection(x, y, time, missing=0.0, minlen=20, maxvel=100, maxacc=400):
 
     """Detects saccades, defined as consecutive samples with an inter-sample
     velocity of over a velocity threshold or an acceleration threshold
@@ -220,3 +227,11 @@ def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):
             stop = True
 
     return Ssac, Esac
+
+
+def check_overlap(lefix, lsacc):
+    for fix_start in lefix.starttime:
+        for j in range(len(lsacc)):
+            sacc_start, sacc_end = int(lsacc.starttime.iloc[j]), int(lsacc.endtime.iloc[j])
+            if int(fix_start) in range(sacc_start, sacc_end):
+                print('overlap', fix_start, sacc_start, sacc_end)
