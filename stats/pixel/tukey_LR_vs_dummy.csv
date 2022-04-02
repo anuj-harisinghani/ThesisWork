@@ -1,0 +1,6 @@
+,group1,group2,meandiff,p-adj,lower,upper,reject
+4,Dummy / all,LinearReg / all,-27.2362,0.001,-27.8696,-26.6029,True
+13,Dummy / avg,LinearReg / avg,-26.0416,0.001,-26.675,-25.4083,True
+21,Dummy / both_eyes,LinearReg / both_eyes,-27.2869,0.001,-27.9203,-26.6536,True
+28,Dummy / left,LinearReg / left,-20.5241,0.001,-21.1575,-19.8908,True
+34,Dummy / right,LinearReg / right,-22.221,0.001,-22.8543,-21.5876,True

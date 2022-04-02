@@ -1,0 +1,6 @@
+,group1,group2,meandiff,p-adj,lower,upper,reject
+4,new / all,old / all,-13.1782,0.001,-17.3354,-9.021,True
+13,new / avg,old / avg,-15.5728,0.001,-20.1426,-11.0031,True
+21,new / both_eyes,old / both_eyes,-13.2734,0.001,-17.8432,-8.7037,True
+28,new / left,old / left,-16.3547,0.001,-20.9245,-11.785,True
+34,new / right,old / right,-14.3224,0.001,-18.8921,-9.7526,True

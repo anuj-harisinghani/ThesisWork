@@ -1,0 +1,6 @@
+,group1,group2,meandiff,p-adj,lower,upper,reject,cohens d
+4,new / all,old / all,-5.5841,0.001,-7.7399,-3.4283,TRUE,-0.528119194
+13,new / avg,old / avg,-5.8204,0.001,-7.9761,-3.6646,TRUE,-0.555767629
+21,new / both_eyes,old / both_eyes,-5.5945,0.001,-7.7503,-3.4387,TRUE,-0.529574132
+28,new / left,old / left,-6.4314,0.001,-8.5872,-4.2756,TRUE,-0.608675946
+34,new / right,old / right,-5.5188,0.001,-7.6746,-3.363,TRUE,-0.508690532

@@ -1,0 +1,11 @@
+,group1,group2,meandiff,p-adj,lower,upper,reject
+0,LinearReg / all,LinearReg / avg,0.3842,0.4927,-0.2895,1.0578,False
+1,LinearReg / all,LinearReg / both_eyes,0.3545,0.5623,-0.3191,1.0282,False
+2,LinearReg / all,LinearReg / left,7.3572,0.001,6.6836,8.0309,True
+3,LinearReg / all,LinearReg / right,5.1807,0.001,4.507,5.8543,True
+4,LinearReg / avg,LinearReg / both_eyes,-0.0296,0.9,-0.7033,0.644,False
+5,LinearReg / avg,LinearReg / left,6.9731,0.001,6.2994,7.6467,True
+6,LinearReg / avg,LinearReg / right,4.7965,0.001,4.1228,5.4702,True
+7,LinearReg / both_eyes,LinearReg / left,7.0027,0.001,6.329,7.6764,True
+8,LinearReg / both_eyes,LinearReg / right,4.8261,0.001,4.1525,5.4998,True
+9,LinearReg / left,LinearReg / right,-2.1766,0.001,-2.8502,-1.5029,True

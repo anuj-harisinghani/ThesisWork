@@ -53,9 +53,10 @@ def create_segment_file(ttf, valid_pids):
 
         ttf_data = ttf[ttf['StudyID'] == pid]
         task_sc = ttf_data[['Task', 'Task', 'timestampIni', 'timestampEnd']]
-        all_sc = pd.DataFrame(
-            [[pid + '_allsc', 'all_sc', ttf_data['timestampIni'].iloc[0], ttf_data['timestampEnd'].iloc[-1]]],
-            columns=task_sc.columns)
+        # all_sc = pd.DataFrame(
+        #     [[pid + '_allsc', 'all_sc', ttf_data['timestampIni'].iloc[0], ttf_data['timestampEnd'].iloc[-1]]],
+        #     columns=task_sc.columns)
+        all_sc = pd.DataFrame(columns=task_sc.columns)
 
         seg = all_sc.append(task_sc, ignore_index=True)
         seg.to_csv(os.path.join(pid_path, pid + '.seg'), sep='\t', header=False, index=False)
@@ -198,12 +199,13 @@ def generate_fixations(pids):
         # new_cols = ['ValidityLeft', 'ValidityRight', 'FixationIndex', 'SaccadeIndex', 'GazeEventType', 'GazeEventDuration',
         #             'FixationPointX', 'FixationPointY']
 
-        new_cols = ['FixationIndex', 'SaccadeIndex', 'GazeEventType', 'GazeEventDuration',
+        new_cols = ['ParticipantName', 'FixationIndex', 'SaccadeIndex', 'GazeEventType', 'GazeEventDuration',
                     'FixationPointX', 'FixationPointY', 'ValidityLeft', 'ValidityRight',
                     'UnclassifiedIndex']
 
         gaze_events = pd.DataFrame(columns=new_cols, index=avg_preds.index)
         gaze_events.ValidityLeft = gaze_events.ValidityRight = 0
+        gaze_events.ParticipantName = pid
 
         # Fixations ----------------------------------------------------------------------------------------------------
         for row in avgefix.index:
@@ -232,14 +234,14 @@ def generate_fixations(pids):
 
             # check if the suggested saccade range already has a fixation in it (overlapping time)
             if gaze_events.FixationIndex[sacc_range_index].count() > 0:
-                print('Saccade range overlapping with some Fixation')
+                # print('Saccade range overlapping with some Fixation')
                 new_sacc_range_index = sacc_range_index[gaze_events.FixationIndex[sacc_range.index].isna()]
                 gaze_events.GazeEventType[new_sacc_range_index] = 'Saccade'
 
                 for i in new_sacc_range_index:
                     gaze_events.SaccadeIndex[i] = sacc_count
                     if i+1 not in new_sacc_range_index:
-                        print('saccade breaks at ', i)
+                        # print('saccade breaks at ', i)
                         sacc_count += 1
 
         # after labelling whichever row has a saccade in it, now based on the SaccadeIndex, put in duration
@@ -263,7 +265,7 @@ def generate_fixations(pids):
         for row in nan_gaze_events_index:
             gaze_events.UnclassifiedIndex[row] = unclassified_count
             if row+1 not in nan_gaze_events_index:
-                print('unclassified breaks at ', row)
+                # print('unclassified breaks at ', row)
                 unclassified_count += 1
 
         for u in range(1, unclassified_count):
@@ -284,6 +286,35 @@ def generate_fixations(pids):
         # now after this, go to EMDAT and start adding fixation files to that
         # or even make saccade files and edit TobiiV2Recording so that the included columns are considered
         # also, look into adding task name on the side of all fixations / saccades, if necessary (using ttf file)
+
+
+def create_dataset_files():
+    """
+    Run this function after EMDAT has created its feature file from the fixations and all-data files created above
+    :return:
+    """
+    EMDAT_output_path = r"C:\Users\Anuj\PycharmProjects\EMDAT-et-features-generation\src\outputfolder\output_featuresV3.tsv"
+
+    file = pd.read_csv(EMDAT_output_path, sep='\t')
+    canary_path = r"C:\Users\Anuj\PycharmProjects\multimodal-ml-framework\datasets\canary"
+    fix_features = pd.read_csv(os.path.join(canary_path, 'eye_fixation.csv')).columns[1:]
+    path_features = pd.read_csv(os.path.join(canary_path, 'eye_path.csv')).columns[1:]
+    sacc_features = pd.read_csv(os.path.join(canary_path, 'eye_saccade.csv')).columns[1:]
+    pupil_features = pd.read_csv(os.path.join(canary_path, 'eye_pupil.csv')).columns[1:]
+
+    rename_cols = {'Part_id': 'interview', 'Sc_id': 'task'}
+    file = file.rename(rename_cols, axis=1)
+
+    fix_file = file[fix_features]
+    path_file = file[path_features]
+    sacc_file = file[sacc_features]
+    pupil_file = file[pupil_features]
+
+    save_path = r"C:\Users\Anuj\PycharmProjects\multimodal-ml-framework\datasets\webcam"
+    fix_file.to_csv(os.path.join(save_path, 'eye_fixation.csv'))
+    path_file.to_csv(os.path.join(save_path, 'eye_path.csv'))
+    sacc_file.to_csv(os.path.join(save_path, 'eye_saccade.csv'))
+    pupil_file.to_csv(os.path.join(save_path, 'eye_pupil.csv'))
 
 
 def main():
@@ -319,6 +350,8 @@ def main():
     # get data
     pid_all_data = cv.get_data(valid_pids)
 
+    # generate fixations and save them to EMDAT and predictions folders
+    generate_fixations(valid_pids)
     create_segment_file(ttf, valid_pids)
 
     # set a subset, classifier

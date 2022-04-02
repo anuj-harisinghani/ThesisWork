@@ -1,0 +1,6 @@
+,strategy,clf1,clf2,cohens d
+0,left,Dummy,LinearReg,47.953495611138365
+0,right,Dummy,LinearReg,52.81812386683854
+0,both_eyes,Dummy,LinearReg,63.29628307711196
+0,avg,Dummy,LinearReg,55.59163856942129
+0,all,Dummy,LinearReg,62.93418586400897

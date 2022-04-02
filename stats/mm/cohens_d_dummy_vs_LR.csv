@@ -1,0 +1,6 @@
+,strategy,clf1,clf2,effect_t
+0,left,Dummy,LinearReg,-47.93081017002979
+0,right,Dummy,LinearReg,-52.80697563561042
+0,both_eyes,Dummy,LinearReg,-63.274147550373236
+0,avg,Dummy,LinearReg,-55.57152669738658
+0,all,Dummy,LinearReg,-62.807461647226354

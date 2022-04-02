@@ -1,0 +1,6 @@
+,group1,group2,meandiff,p-adj,lower,upper,reject,cohens d
+4,Dummy / all,LinearReg / all,-7.6689,0.001,-7.8473,-7.4904,TRUE,-62.80746165
+13,Dummy / avg,LinearReg / avg,-7.3325,0.001,-7.511,-7.1541,TRUE,-55.5715267
+21,Dummy / both_eyes,LinearReg / both_eyes,-7.6836,0.001,-7.862,-7.5051,TRUE,-63.27414755
+28,Dummy / left,LinearReg / left,-5.779,0.001,-5.9575,-5.6006,TRUE,-47.93081017
+34,Dummy / right,LinearReg / right,-6.2574,0.001,-6.4358,-6.0789,TRUE,-52.80697564
