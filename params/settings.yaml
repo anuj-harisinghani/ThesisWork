@@ -38,13 +38,22 @@ paths:
         "plog": "C:/Users/Anuj/Desktop/Canary/canary-nlp/datasets/csv_tables/participant_log.csv",
         "data": "C:/Users/Anuj/Desktop/Canary/Baseline/extracted_data/",
         "ttf": "C:/Users/Anuj/Desktop/Canary/Baseline/TasksTimestamps.csv",
-        "pred_coords": "C:/Users/Anuj/Desktop/Canary/Baseline/predicted_coordinates/"
+        "pred_coords": "C:/Users/Anuj/Desktop/Canary/Baseline/predicted_coordinates/",
+        "EMDAT_save_path": "C:/Users/Anuj/PycharmProjects/EMDAT-et-features-generation/src/data/TobiiV3/",
+        "EMDAT_output_path": "C:/Users/Anuj/PycharmProjects/EMDAT-et-features-generation/src/outputfolder/",
+        "ML_Framework_dataset": "C:/Users/Anuj/PycharmProjects/multimodal-ml-framework/datasets/",
+        "et_processing_pipeline_raw_data_path": "C:/Users/"
       },
     "posix":
       { "input": "/home/anuj/OpenFace2/OpenFace/build/processed/Baseline/",
         "output": "/home/anuj/Documents/CANARY_Baseline/eye_movement/",
         "plog": "/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv",
         "data": "/home/anuj/Documents/CANARY_Baseline/extracted_data/",
-        "ttf": "/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv"
+        "ttf": "/home/anuj/Documents/CANARY_Baseline/TasksTimestamps.csv",
+        "pred_coords": "/home/anuj/Documents/CANARY_Baseline/predicted_coordinates/",
+        "EMDAT_save_path": "/home/anuj/EMDAT-et-features-generation/src/data/TobiiV3/",
+        "EMDAT_output_path": "/home/anuj/EMDAT-et-features-generation/src/outputfolder/",
+        "ML_Framework_dataset": "/home/anuj/multimodal-ml-framework/datasets/",
+        "et_processing_pipeline_raw_data_path": "/home/anuj/et-processing-pipeline/data/Preprocessing/Predicted_coords/"
       }
   }
