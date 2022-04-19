@@ -402,7 +402,7 @@ def main():
     valid_pids = np.intersect1d(ttf_pids, meta_data['PID'])
 
     # get data
-    # pid_all_data = cv.get_data(valid_pids)
+    pid_all_data = cv.get_data(valid_pids)
 
     # generate fixations and save them to EMDAT and predictions folders
     generate_fixations(valid_pids)

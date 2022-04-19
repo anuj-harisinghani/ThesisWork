@@ -109,12 +109,12 @@ def train_test_split(pid_all_data, strategy, seed, fold):
 
     elif strategy == 'all':
         x_train = np.hstack((input_train[:, :3], input_train[:, 3:6], (input_train[:, :3] + input_train[:, 3:6]) / 2))
-        y_train = np.hstack(
-            (output_train[:, :2], output_train[:, 2:4], (output_train[:, :2] + output_train[:, 2:4]) / 2))
-        # y_train = np.hstack((output_train[:, :2], output_train[:, 2:4]))
+        # y_train = np.hstack(
+        #     (output_train[:, :2], output_train[:, 2:4], (output_train[:, :2] + output_train[:, 2:4]) / 2))
+        y_train = np.hstack((output_train[:, :2], output_train[:, 2:4]))
         x_test = np.hstack((input_test[:, :3], input_test[:, 3:6], (input_test[:, :3] + input_test[:, 3:6]) / 2))
-        y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4]) / 2))
-        # y_test = np.hstack((output_test[:, :2], output_test[:, 2:4]))
+        # y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4]) / 2))
+        y_test = np.hstack((output_test[:, :2], output_test[:, 2:4]))
 
     return x_train, y_train, x_test, y_test, \
            ts_train, ts_test, ts_from_start_train, ts_from_start_test
