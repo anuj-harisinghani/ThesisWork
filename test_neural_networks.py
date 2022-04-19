@@ -24,8 +24,8 @@ warnings.filterwarnings("ignore")
 
 def neural_network(n_inputs, n_outputs):
     model = Sequential()
-    model.add(Dense(18, input_shape=(n_inputs,), activation='relu'))
-    model.add(Dense(8, activation='linear'))
+    model.add(Dense(8, input_shape=(n_inputs,), activation='relu'))
+    model.add(Dense(6, activation='linear'))
     model.add(Dense(n_outputs))
     model.compile(loss='mae', optimizer='adam')
     print(model.summary())
@@ -71,7 +71,7 @@ def main():
     strategy = 'all'
     clf = 'NeuralNetwork'
     x_train, y_train, x_test, y_test, a, b, c, d = train_test_split(pid_all_data, strategy, seed, fold)
-    chain = neural_network(9, 6)
+    chain = neural_network(9, 4)
     chain.fit(x_train, y_train, epochs=20)
     preds = chain.predict(x_test)
     error = mean_absolute_error(y_true=y_test, y_pred=preds)

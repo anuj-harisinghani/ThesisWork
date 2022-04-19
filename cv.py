@@ -51,7 +51,7 @@ def get_data(valid_pids):
     return pid_all_data
 
 
-def train_test_split(pid_all_data, strategy, seed, fold):
+def train_test_split(pid_all_data, strategy, seed, fold, val_set):
     # creating splits of PIDs, to get lists of PIDs that are gonna be in train and test sets
     params = ParamsHandler.load_parameters('settings')
     nfolds = params['folds']
@@ -60,8 +60,18 @@ def train_test_split(pid_all_data, strategy, seed, fold):
     valid_pids = list(pid_all_data.keys())
 
     random.Random(seed).shuffle(valid_pids)
-    test_splits = np.array_split(valid_pids, nfolds)
-    train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
+
+    # adding validation set calculation
+    if val_set:
+        test_splits_c = np.array_split(valid_pids, nfolds//2)  # currently nfolds = 10, this divides into 5 parts
+        train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits_c]  # makes 80:20 splits
+        val_splits = [np.array_split(i, 2)[0] for i in test_splits_c]
+        test_splits = [np.setdiff1d(test_splits_c[i], val_splits[i]) for i in range(len(test_splits_c))]
+
+    else:
+        test_splits = np.array_split(valid_pids, nfolds)
+        train_splits = [np.setdiff1d(valid_pids, i) for i in test_splits]
+        val_splits = None
 
     # fold_path = os.path.join(results, str(seed))
     # pd.DataFrame(train_splits).to_csv(os.path.join(fold_path, 'train_pids.csv'))
@@ -74,13 +84,16 @@ def train_test_split(pid_all_data, strategy, seed, fold):
     input_test = np.vstack([pid_all_data[pid]['input'] for pid in test_splits[fold]])
     output_test = np.vstack([pid_all_data[pid]['output'] for pid in test_splits[fold]])
 
-    ts_train = np.vstack([pid_all_data[pid]['timestamps'] for pid in train_splits[fold]])
-    ts_test = np.vstack([pid_all_data[pid]['timestamps'] for pid in test_splits[fold]])
+    input_val = np.vstack([pid_all_data[pid]['input'] for pid in val_splits[fold]])
+    output_val = np.vstack([pid_all_data[pid]['output'] for pid in val_splits[fold]])
 
-    ts_from_start_train = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in train_splits[fold]])
-    ts_from_start_test = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in test_splits[fold]])
+    # ts_train = np.vstack([pid_all_data[pid]['timestamps'] for pid in train_splits[fold]])
+    # ts_test = np.vstack([pid_all_data[pid]['timestamps'] for pid in test_splits[fold]])
+    #
+    # ts_from_start_train = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in train_splits[fold]])
+    # ts_from_start_test = np.vstack([pid_all_data[pid]['ts_from_start'] for pid in test_splits[fold]])
 
-    x_train = y_train = x_test = y_test = None
+    x_train = y_train = x_test = y_test = x_val = y_val = None
 
     # now take out the pieces that are not required - subsets
     if strategy == 'left':
@@ -88,24 +101,32 @@ def train_test_split(pid_all_data, strategy, seed, fold):
         y_train = output_train[:, :2]
         x_test = input_test[:, :3]
         y_test = output_test[:, :2]
+        x_val = input_val[:, :3]
+        y_val = output_val[:, :2]
 
     elif strategy == 'right':
         x_train = input_train[:, 3:6]
         y_train = output_train[:, 2:4]
         x_test = input_test[:, 3:6]
         y_test = output_test[:, 2:4]
+        x_val = input_val[:, 3:6]
+        y_val = output_val[:, 2:4]
 
     elif strategy == 'both_eyes':
         x_train = input_train[:, :6]
         y_train = output_train[:, :4]
         x_test = input_test[:, :6]
         y_test = output_test[:, :4]
+        x_val = input_val[:, :6]
+        y_val = output_val[:, :4]
 
     elif strategy == 'avg':
         x_train = (input_train[:, :3] + input_train[:, 3:6]) / 2
         y_train = (output_train[:, :2] + output_train[:, 2:4]) / 2
         x_test = (input_test[:, :3] + input_test[:, 3:6]) / 2
         y_test = (output_test[:, :2] + output_test[:, 2:4]) / 2
+        x_val = (input_val[:, :3] + input_val[:, 3:6]) / 2
+        y_val = (output_val[:, :2] + output_val[:, 2:4]) / 2
 
     elif strategy == 'all':
         x_train = np.hstack((input_train[:, :3], input_train[:, 3:6], (input_train[:, :3] + input_train[:, 3:6]) / 2))
@@ -115,9 +136,11 @@ def train_test_split(pid_all_data, strategy, seed, fold):
         x_test = np.hstack((input_test[:, :3], input_test[:, 3:6], (input_test[:, :3] + input_test[:, 3:6]) / 2))
         # y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4]) / 2))
         y_test = np.hstack((output_test[:, :2], output_test[:, 2:4]))
+        x_val = np.hstack((input_val[:, :3], input_val[:, 3:6], (input_val[:, :3] + input_val[:, 3:6]) / 2))
+        y_val = np.hstack((output_val[:, :2], output_val[:, 2:4]))
 
-    return x_train, y_train, x_test, y_test, \
-           ts_train, ts_test, ts_from_start_train, ts_from_start_test
+    return x_train, y_train, x_test, y_test, x_val, y_val  # \
+           # ts_train, ts_test, ts_from_start_train, ts_from_start_test
 
 
 # try multi processing
@@ -125,6 +148,7 @@ def try_multi(pid_all_data, subsets, classifiers, seed):
     params = ParamsHandler.load_parameters('settings')
     nfolds = params['folds']
     mode = params['mode']
+    val_set = True
 
     fold_results = []
     fold_models = {s: [] for s in subsets}
@@ -133,7 +157,7 @@ def try_multi(pid_all_data, subsets, classifiers, seed):
             for fold in range(nfolds):
                 x_train, y_train, x_test, y_test, \
                 ts_train, ts_test, ts_from_start_train, ts_from_start_test = \
-                    train_test_split(pid_all_data, strategy, seed, fold)
+                    train_test_split(pid_all_data, strategy, seed, fold, val_set)
 
                 if clf != 'NeuralNetwork':
                     model = ClassifiersFactory().get_model(clf)
