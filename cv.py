@@ -108,11 +108,12 @@ def train_test_split(pid_all_data, strategy, seed, fold):
         y_test = (output_test[:, :2] + output_test[:, 2:4]) / 2
 
     elif strategy == 'all':
-        x_train = np.hstack((input_train[:, :3], input_train[:, 3:6], (input_train[:, :3] + input_train[:, 3:6])/2))
-        y_train = np.hstack((output_train[:, :2], output_train[:, 2:4], (output_train[:, :2] + output_train[:, 2:4])/2))
+        x_train = np.hstack((input_train[:, :3], input_train[:, 3:6], (input_train[:, :3] + input_train[:, 3:6]) / 2))
+        y_train = np.hstack(
+            (output_train[:, :2], output_train[:, 2:4], (output_train[:, :2] + output_train[:, 2:4]) / 2))
         # y_train = np.hstack((output_train[:, :2], output_train[:, 2:4]))
-        x_test = np.hstack((input_test[:, :3], input_test[:, 3:6], (input_test[:, :3] + input_test[:, 3:6])/2))
-        y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4])/2))
+        x_test = np.hstack((input_test[:, :3], input_test[:, 3:6], (input_test[:, :3] + input_test[:, 3:6]) / 2))
+        y_test = np.hstack((output_test[:, :2], output_test[:, 2:4], (output_test[:, :2] + output_test[:, 2:4]) / 2))
         # y_test = np.hstack((output_test[:, :2], output_test[:, 2:4]))
 
     return x_train, y_train, x_test, y_test, \
@@ -172,8 +173,8 @@ def main():
 
     # paths
     paths = params['paths'][os.name]
-    input = paths['input']      # baseline_processed
-    output = paths['output']    # eye_data_path
+    input = paths['input']  # baseline_processed
+    output = paths['output']  # eye_data_path
     diag = paths['plog']
     data = os.path.join(paths['data'], mode)
     results = os.path.join('results', mode)
