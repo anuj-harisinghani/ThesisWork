@@ -178,31 +178,3 @@ def main():
         _ = [p.get() for p in cv]
 
 
-
-    correct = 0
-    wrong = 0
-    for idx2 in range(len(input_test)):
-        x = input_train[idx2]
-        y = output_train[idx2]
-        # print(idx, len(x))
-
-        x = np.reshape(x, (1, x.shape[0], x.shape[1]))
-        y = np.reshape(y, (1, y.shape[0]))
-
-        pred = net.predict(x)
-        pred[pred > 0.5] = 1
-        pred[pred <= 0.5] = 0
-
-        if all(pred == y):
-            correct+=1
-        else:
-            wrong+=1
-
-
-
-
-    x_test = input_test[0]
-    x_test = np.reshape(x_test, (1, x_test.shape[0], x_test.shape[1]))
-    net.predict(x_test)
-
-
