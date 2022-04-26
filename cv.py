@@ -39,7 +39,7 @@ def get_data(valid_pids):
         x = np.array(pid_input)
         y = np.array(pid_output)
 
-        pid_all_data[pid]['input'] = x[:, :-2]
+        pid_all_data[pid]['input'] = x[:, 1:-1]
         pid_all_data[pid]['output'] = y[:, 1:len(op_cols)]
 
         timestamps = np.array(pid_input[['timestamp', 'RecordingTimestamp']])
@@ -139,8 +139,7 @@ def train_test_split(pid_all_data, strategy, seed, fold, val_set):
         x_val = np.hstack((input_val[:, :3], input_val[:, 3:6], (input_val[:, :3] + input_val[:, 3:6]) / 2))
         y_val = np.hstack((output_val[:, :2], output_val[:, 2:4]))
 
-    return x_train, y_train, x_test, y_test, x_val, y_val  # \
-           # ts_train, ts_test, ts_from_start_train, ts_from_start_test
+    return x_train, y_train, x_test, y_test, x_val, y_val
 
 
 # try multi processing
