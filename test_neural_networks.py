@@ -155,12 +155,12 @@ def main():
                         preds = chain.predict(x_test)
                         error = mean_absolute_error(y_test, preds)
                         errors.append([error, n_layers, nodes1, nodes2, nodes3, loss, optimizer])
-                        # chain.save(os.path.join('models4', '{}_{}_{}_{}_{}'.format(n_layers, nodes1, nodes2, nodes3, loss, optimizer)))
-                        # with open(os.path.join('models4', 'errors.txt'), 'a') as f:
-                        #     f.write('{}_{}_{}_{}_{}\n'.format(error, n_layers, nodes1, nodes2, nodes3, loss, optimizer))
+                        chain.save(os.path.join('models4', '{}_{}_{}_{}_{}'.format(n_layers, nodes1, nodes2, nodes3, loss, optimizer)))
+                        with open(os.path.join('models4', 'errors.txt'), 'a') as f:
+                            f.write('{}_{}_{}_{}_{}\n'.format(error, n_layers, nodes1, nodes2, nodes3, loss, optimizer))
                         print(error, n_layers, nodes1, nodes2, nodes3, loss, optimizer)
-                        # del chain
-                        # del preds
+                        del chain
+                        del preds
                         gc.collect()
 
     # chain = neural_network(9, 4)

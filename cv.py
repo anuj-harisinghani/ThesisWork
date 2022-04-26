@@ -147,16 +147,14 @@ def try_multi(pid_all_data, subsets, classifiers, seed):
     params = ParamsHandler.load_parameters('settings')
     nfolds = params['folds']
     mode = params['mode']
-    val_set = True
+    val_set = False
 
     fold_results = []
     fold_models = {s: [] for s in subsets}
     for strategy in subsets:
         for clf in classifiers:
             for fold in range(nfolds):
-                x_train, y_train, x_test, y_test, \
-                ts_train, ts_test, ts_from_start_train, ts_from_start_test = \
-                    train_test_split(pid_all_data, strategy, seed, fold, val_set)
+                x_train, y_train, x_test, y_test, x_val, y_val = train_test_split(pid_all_data, strategy, seed, fold, val_set)
 
                 if clf != 'NeuralNetwork':
                     model = ClassifiersFactory().get_model(clf)

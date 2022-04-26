@@ -38,11 +38,6 @@ def create_segment_file(ttf, valid_pids):
     :return:
     """
 
-    # params = ParamsHandler.load_parameters('settings')
-    # mode = params['mode']
-    # paths = params['paths'][os.name]
-    # pred_coord_path = os.path.join(paths['pred_coords'], mode)
-
     for pid in tqdm(valid_pids, desc='creating segment files'):
         pid_path = os.path.join(pred_coord_path, pid)
 
@@ -73,12 +68,6 @@ def run_inference(pid_all_data, models, strat, seeds, nfolds):
     :return:
     """
     pids = pid_all_data.keys()
-
-    # params = ParamsHandler.load_parameters('settings')
-    # mode = params['mode']
-    # paths = params['paths'][os.name]
-    # pred_coord_path = os.path.join(paths['pred_coords'], mode)
-
     if not os.path.exists(pred_coord_path):
         os.mkdir(pred_coord_path)
 
@@ -142,10 +131,6 @@ def generate_fixations(pids):
     :param pids:
     :return:
     """
-    # params = ParamsHandler.load_parameters('settings')
-    # mode = params['mode']
-    # paths = params['paths'][os.name]
-    # pred_coord_path = os.path.join(paths['pred_coords'], mode)
 
     for pid in tqdm(pids, desc='generating fixations for pids'):
         pid_path = os.path.join(pred_coord_path, pid)
@@ -302,7 +287,6 @@ def generate_fixations(pids):
 
 
         gaze_file = pd.concat((avg_preds, gaze_events), axis=1)
-        # EMDAT_save_path = r"C:\Users\Anuj\PycharmProjects\EMDAT-et-features-generation\src\data\TobiiV3"
 
         # saving gaze file as "All-Data" to be used by EMDAT to create Fixation, Saccade, Path, InfoUnit feature sets
         gaze_file.to_csv(os.path.join(EMDAT_save_path, pid + '-All-Data.tsv'), sep='\t')
@@ -422,6 +406,6 @@ def main():
 
     strat = 'all'
     run_inference(pid_all_data, models, strat, seeds, nfolds)
-    pids = pid_all_data.keys()
 
+    pids = pid_all_data.keys()
     generate_fixations(pids)
