@@ -173,7 +173,7 @@ def main():
     seed = 0
     if mp_flag:
         pool = Pool(processes=n_cores)
-        cv = [pool.apply_async(cross_validate, args=(pid_all_data, strategy, seed, nfolds, epochs))
+        cv = [pool.apply_async(cross_validate, args=(pid_all_data, strategy, seed, nfolds, n_epochs))
               for seed in range(seeds)]
         _ = [p.get() for p in cv]
 
