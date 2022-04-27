@@ -2,6 +2,7 @@ import keras.backend
 import tensorflow as tf
 from keras.layers import Dense, Input, LSTM, Dropout, Masking
 from keras import Sequential
+import keras.optimizers as optimizers
 from sklearn.metrics import accuracy_score, mean_absolute_error, log_loss
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_score, recall_score, confusion_matrix
@@ -35,6 +36,8 @@ def neural_network(timesteps, data_dim):
     model.add(Dropout(0.5))
     model.add(Dense(100, activation='relu'))
     model.add(Dense(n_output, activation='softmax'))
+
+    # opt = keras.optimizers.adam_v2
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     print(model.summary())
     return model
@@ -109,12 +112,25 @@ def cross_validate(pid_all_data, strategy, seed, nfolds, n_epochs):
         # net2 = neural_network2(None, data_dim_dict[strategy])
 
 
-        history = net.fit(input_train, output_train, epochs=100, steps_per_epoch=20)
+        history = net.fit(input_train, output_train, epochs=50, steps_per_epoch=50)
         train_loss = history.history['loss']
         train_acc = history.history['accuracy']
 
-        test_loss, test_acc = net.evaluate(input_test, output_test, steps=50)
+        plt.plot(train_loss)
+        plt.plot(train_acc)
 
+        test_loss, test_acc = net.evaluate(input_test, output_test)
+
+        pred_probs = net.predict(input_test)
+        preds = pred_probs.round()
+
+        roc_auc = roc_auc_score(output_test[:, 0], preds[:, 0])
+        f1 = f1_score(output_test[:, 0], preds[:, 0])
+        acc1 = accuracy_score(output_test[:, 0], preds[:, 0])
+        prec = precision_score(output_test[:, 0], preds[:, 0])
+        rec = recall_score(output_test[:, 0], preds[:, 0])
+        tn, fp, fn, tp = confusion_matrix(output_test[:, 0], preds[:, 0]).ravel()
+        spec = tn/(tn+fp)
 
         """
         training without padding - training each sequence one by one - varying sequence length
@@ -226,8 +242,9 @@ def main():
     plog = pd.read_csv(diag)
 
     # for padding option - remove outliers that have either too many or too little data points, then pad the remaining
-    pid_all_data = remove_outliers(pid_all_data)
-    pid_all_data = align_and_pad(pid_all_data)
+    # pid_all_data = remove_outliers(pid_all_data)
+    # pid_all_data = align_and_pad(pid_all_data, align_at_end=False)
+    pid_all_data = align_and_pad(pid_all_data, align_at_end=True)
 
     strategy = 'all'
     n_epochs = 50
@@ -259,37 +276,58 @@ def remove_outliers(pid_all_data):
     return data
 
 
-def align_and_pad(data):
-
-    # first gotta find the min and max of timestamp across all pids in the data
-    min_ts = 0.0
-    max_till_now = 0
-    for pid in data.keys():
-        pid_max_ts = data[pid]['timestamps'][-1, 0]
-        if max_till_now < pid_max_ts:
-            max_till_now = pid_max_ts
-            max_pid = pid
-
-    max_ts = max_till_now
-
-    # now, create a range of all timestamps starting from min_ts to max_ts
-    # using only OpenFace's timestamps, not RecordingTimestamp from Tobii
-    timestamp_range = np.arange(min_ts, max_ts+0.1, 0.1)
+def align_and_pad(data, align_at_end=False):
     input_dims = 8
     output_dims = 6
 
     new_data = {pid: {'input': None, 'output': None} for pid in list(data.keys())}
-    for pid in tqdm(data.keys(), 'padding PID data'):
-        new_pid_input = np.zeros(shape=(len(timestamp_range), input_dims))
-        new_pid_output = np.zeros(shape=(len(timestamp_range), output_dims))
 
-        for ts_index, ts in enumerate(timestamp_range):
-            if ts in data[pid]['timestamps'][:, 0]:
-                index = np.where(data[pid]['timestamps'][:, 0] == ts)[0][0]
-                new_pid_input[ts_index] = data[pid]['input'][index]
-                new_pid_output[ts_index] = data[pid]['output'][index]
+    # for 0 padding at the end
+    if align_at_end:
+        lens = np.array([[pid, len(vals['input'])] for pid, vals in data.items()], dtype='object')
+        max_lens = lens[:, 1].max()
 
-        new_data[pid]['input'] = new_pid_input
-        new_data[pid]['output'] = new_pid_output
+        for pid in tqdm(data.keys(), 'padding PID data at the end'):
+            new_pid_input = np.zeros(shape=(max_lens, input_dims))
+            new_pid_output = np.zeros(shape=(max_lens, output_dims))
+
+            x = data[pid]['input']
+            y = data[pid]['output']
+
+            new_pid_input[:x.shape[0], :x.shape[1]] = x
+            new_pid_output[:y.shape[0], :y.shape[1]] = y
+
+            new_data[pid]['input'] = new_pid_input
+            new_data[pid]['output'] = new_pid_output
+
+    # for adding 0 values when aligning according to actual timestamp values
+    else:
+        # first gotta find the min and max of timestamp across all pids in the data
+        min_ts = 0.0
+        max_till_now = 0
+        for pid in data.keys():
+            pid_max_ts = data[pid]['timestamps'][-1, 0]
+            if max_till_now < pid_max_ts:
+                max_till_now = pid_max_ts
+                max_pid = pid
+
+        max_ts = max_till_now
+
+        # now, create a range of all timestamps starting from min_ts to max_ts
+        # using only OpenFace's timestamps, not RecordingTimestamp from Tobii
+        timestamp_range = np.arange(min_ts, max_ts + 0.1, 0.1)
+
+        for pid in tqdm(data.keys(), 'padding PID data'):
+            new_pid_input = np.zeros(shape=(len(timestamp_range), input_dims))
+            new_pid_output = np.zeros(shape=(len(timestamp_range), output_dims))
+
+            for ts_index, ts in enumerate(timestamp_range):
+                if ts in data[pid]['timestamps'][:, 0]:
+                    index = np.where(data[pid]['timestamps'][:, 0] == ts)[0][0]
+                    new_pid_input[ts_index] = data[pid]['input'][index]
+                    new_pid_output[ts_index] = data[pid]['output'][index]
+
+            new_data[pid]['input'] = new_pid_input
+            new_data[pid]['output'] = new_pid_output
 
     return new_data
