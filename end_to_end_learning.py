@@ -124,9 +124,9 @@ def cross_validate(pid_all_data, strategy, seed, nfolds, n_epochs):
         pred_probs = net.predict(input_test)
         preds = pred_probs.round()
 
-        roc_auc = roc_auc_score(output_test[:, 0], preds[:, 0])
+        roc = roc_auc_score(output_test[:, 0], preds[:, 0])
         f1 = f1_score(output_test[:, 0], preds[:, 0])
-        acc1 = accuracy_score(output_test[:, 0], preds[:, 0])
+        acc = accuracy_score(output_test[:, 0], preds[:, 0])
         prec = precision_score(output_test[:, 0], preds[:, 0])
         rec = recall_score(output_test[:, 0], preds[:, 0])
         tn, fp, fn, tp = confusion_matrix(output_test[:, 0], preds[:, 0]).ravel()
