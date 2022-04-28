@@ -1,0 +1,43 @@
+## LSTM_params.YAML file
+
+
+# Model Training params ------------------------------------------------------------------------------------------------
+# n_epochs: number of epochs to train the model for
+n_epochs: 50
+
+# steps_per_epoch: number of steps per epoch
+steps_per_epoch: 50
+
+# batch_size: size of batch
+batch_size:
+
+
+# Experiment params ----------------------------------------------------------------------------------------------------
+
+# seeds: number of seeds to randomize and shuffle the data using
+seeds: 10
+
+# folds: number of folds to split the data into. 10 splits the data into 90:10 train:test
+# choose 5 as the folds to add a validation set
+folds: 10
+
+# val_set: boolean, to decide if you want to use a validation set to train the neural network or not
+val_set: False
+
+# mode: which mode (pixel or mm) to pull data from
+mode: pixel
+
+# subsets: which data subset strategies to try out - list as ['left', 'right', 'both_eyes', 'average', 'all']
+subsets: ['left', 'right', 'both_eyes', 'average', 'all']
+
+# output_folder: foldername to put the results in. Will go under ./results/LSTM/output_folder
+# if nothing specified, will create a foldername using other parameters
+output_folder: ""
+
+# multiprocessing: to enable multiprocessing across seeds or not
+multiprocessing: True
+
+# multiprocessing number of cores
+n_cores: {"nt": 6, "posix": -1}
+
+

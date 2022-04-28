@@ -67,7 +67,7 @@ bip_cols = ttf_cols[6:8]
 
 
 for pid in tqdm(valid_pids):
-    print(pid)
+    # print(pid)
     pid_saving_path = os.path.join(data_saving_path, pid)
     if not os.path.exists(pid_saving_path):
         os.mkdir(pid_saving_path)
@@ -321,7 +321,11 @@ for pid in tqdm(valid_pids):
     Here, I'm choosing to go for option 1, then saving the resulting input and outputs. Also gonna save the original.
     '''
 
+    # use this mask of removing NaN values if aligning with the Tobii output values - for pipeline work
     mask = ~pd.isna(pd.DataFrame(pid_output)).any(axis=1)
+
+    # else, do not mask any values - for end to end learning work
+    mask = np.ones(pid_input.shape[0]).astype(bool)
     nan_removed_input = pid_input[mask]
     nan_removed_output = pid_output[mask]
 
@@ -334,10 +338,11 @@ for pid in tqdm(valid_pids):
 
     # save data
     pid_input_df = pd.DataFrame(nan_removed_input, columns=openface_input_cols)
-    pid_input_df.to_csv(os.path.join(pid_saving_path, 'masked_input.csv'), index=None)
+    # pid_input_df.to_csv(os.path.join(pid_saving_path, 'masked_input.csv'), index=None)  # for pipeline, name masked-input
     pid_output_df = pd.DataFrame(nan_removed_output, columns=tobii_ADCSpx_cols)
-    pid_output_df.to_csv(os.path.join(pid_saving_path, 'masked_output.csv'), index=None)
+    # pid_output_df.to_csv(os.path.join(pid_saving_path, 'masked_output.csv'), index=None)  #  for pipeline, name masked output
 
+    pid_input_df.to_csv(os.path.join(pid_saving_path, 'unmasked_input.csv'), index=None)  # for LSTM end-to-end learning
 
 valid_pids2 = np.intersect1d(valid_pids, ttf['StudyID'].unique())
 
@@ -346,15 +351,18 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
     if not os.path.exists(pid_saving_path):
         os.mkdir(pid_saving_path)
 
-    pid_input_df = pd.read_csv(os.path.join(pid_saving_path, 'masked_input.csv'))
-    pid_output_df = pd.read_csv(os.path.join(pid_saving_path, 'masked_output.csv'))
+    # pid_input_df = pd.read_csv(os.path.join(pid_saving_path, 'masked_input.csv'))
+    # pid_output_df = pd.read_csv(os.path.join(pid_saving_path, 'masked_output.csv'))
+
+    pid_input_df = pd.read_csv(os.path.join(pid_saving_path, 'unmasked_input.csv'))
+
 
     # getting data that starts after PupilCalib starts
     pid_timings = ttf[ttf['StudyID'] == pid]
     tasks = pid_timings['Task']
 
     task_only_input = pd.DataFrame(columns=pid_input_df.columns)
-    task_only_output = pd.DataFrame(columns=pid_output_df.columns)
+    # task_only_output = pd.DataFrame(columns=pid_output_df.columns)
 
     for task in tasks:
         task_start, task_end = pid_timings[pid_timings['Task'] == task][['timestampIni', 'timestampEnd']].values[0]
@@ -364,8 +372,8 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
         task_input_data = pid_input_df.iloc[ip_task_start:ip_task_end]
         task_only_input = task_only_input.append(task_input_data, ignore_index=True)
 
-        task_output_data = pid_output_df.iloc[ip_task_start:ip_task_end]
-        task_only_output = task_only_output.append(task_output_data, ignore_index=True)
+        # task_output_data = pid_output_df.iloc[ip_task_start:ip_task_end]
+        # task_only_output = task_only_output.append(task_output_data, ignore_index=True)
 
     # og_start = pid_timings['timestampIni'].iloc[0]
     # start_index_from_pupil = np.argmin(abs(pid_input_df['RecordingTimestamp'] - og_start))
@@ -376,13 +384,13 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
     # pid_output_from_pupil = pid_output_df.iloc[start_index_from_pupil:]
     # pid_output_from_pupil.to_csv(os.path.join(pid_saving_path, 'from_pupil_output.csv'), index=None)
 
-    task_only_input.to_csv(os.path.join(pid_saving_path, 'within_tasks_input.csv'), index=None)
-    task_only_output.to_csv(os.path.join(pid_saving_path, 'within_tasks_output.csv'), index=None)
+    task_only_input.to_csv(os.path.join(pid_saving_path, 'within_tasks_input_unmasked.csv'), index=None)
+    # task_only_output.to_csv(os.path.join(pid_saving_path, 'within_tasks_output.csv'), index=None)
 
 
 # md = pd.concat(meta_data)
 meta_data_pd = pd.DataFrame(np.array(meta_data), columns=meta_data_cols)
-meta_data_pd.to_csv(os.path.join(data_saving_path, 'meta_data.csv'))
+meta_data_pd.to_csv(os.path.join(data_saving_path, 'meta_data_unmasked.csv'))
 
 lens = meta_data_pd['Num masked data points']
 lens = lens.astype(int)
@@ -411,7 +419,7 @@ md2 = np.append(meta_data, outlier_or_not.reshape(len(outlier_or_not), 1), axis=
 new_cols = list(md.columns)[1:]
 new_cols.append('outlier?')
 
-pd.DataFrame(md2, columns=new_cols).to_csv(os.path.join(data_saving_path, 'meta_data_outliers.csv'))
+pd.DataFrame(md2, columns=new_cols).to_csv(os.path.join(data_saving_path, 'meta_data_outliers_unmasked.csv'))
 
 '''
 # code to check if the StudioEvent lengths match with the video length (or are close to each other):

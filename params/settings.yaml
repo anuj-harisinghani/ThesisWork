@@ -15,6 +15,10 @@ tasks: ["PupilCalib", "CookieTheft", "Reading", "Memory"]
 # output type: "pixel" or "mm"
 mode: "pixel"
 
+# output_folder: specificy name as a string, will be added under ./results/LSTM/output_folder
+# if nothing specified, automatically gets created with a name taking type of network, epochs, steps_per_epoch, version
+output_folder: ""
+
 # time length: the amount of seconds to choose data within - will start from the beginnning of PupilCalib
 time: 40
 
@@ -25,7 +29,7 @@ subsets: ["left", "right", "both_eyes", "avg", "all"]
 classifiers: ["Dummy", "LinearReg"]
 
 # multiprocessing: to enable multiprocessing across seeds or not
-multiprocessing: False
+multiprocessing: True
 
 # multiprocessing number of cores
 n_cores: {"nt": 6, "posix": -1}
