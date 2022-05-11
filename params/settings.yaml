@@ -49,7 +49,7 @@ paths:
         "et_processing_pipeline_raw_data_path": "C:/Users/"
       },
     "posix":
-      { "input": "/home/anuj/OpenFace2/OpenFace/build/processed/Baseline/",
+      { "input": "/home/anuj/Documents/CANARY_Baseline/OpenFace-eye-gaze/",
         "output": "/home/anuj/Documents/CANARY_Baseline/eye_movement/",
         "plog": "/home/anuj/multimodal-ml-framework/datasets/canary/participant_log.csv",
         "data": "/home/anuj/Documents/CANARY_Baseline/extracted_data/",

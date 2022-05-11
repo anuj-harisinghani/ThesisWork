@@ -356,11 +356,12 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
 
     pid_input_df = pd.read_csv(os.path.join(pid_saving_path, 'unmasked_input.csv'))
 
-
     # getting data that starts after PupilCalib starts
     pid_timings = ttf[ttf['StudyID'] == pid]
     tasks = pid_timings['Task']
 
+    cols = list(pid_input_df.columns)
+    cols.append('task')
     task_only_input = pd.DataFrame(columns=pid_input_df.columns)
     # task_only_output = pd.DataFrame(columns=pid_output_df.columns)
 
@@ -370,6 +371,7 @@ for pid in tqdm(valid_pids2, desc='getting pupil start'):
         ip_task_end = np.argmin(abs(pid_input_df['RecordingTimestamp'] - task_end))
 
         task_input_data = pid_input_df.iloc[ip_task_start:ip_task_end]
+        task_input_data['task'] = task
         task_only_input = task_only_input.append(task_input_data, ignore_index=True)
 
         # task_output_data = pid_output_df.iloc[ip_task_start:ip_task_end]
