@@ -6,6 +6,7 @@ from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_s
 
 from ParamsHandler import ParamsHandler
 from ModelHandler import ClassifiersFactory
+from ResultsHandler import ResultsHandler
 
 import os
 import random
@@ -39,6 +40,7 @@ def neural_network(timesteps, data_dim, mask_value=0.):
     model = Sequential()
     model.add(Masking(mask_value=mask_value, input_shape=(timesteps, data_dim)))
     model.add(LSTM(10))
+    # model.add(Bidirectional(LSTM(10)))
     # model.add(LSTM(64))
     model.add(Dropout(0.5))
     model.add(Dense(4, activation='relu'))
@@ -134,7 +136,7 @@ def get_data(pids, tasks):
     return data
 
 
-def remove_outliers(data, pids, tasks, save_stats=False):
+def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=False):
     task_stats = {task: {'mean': None, 'std': None, 'median': None, 'min': None, 'max': None, 'total': None,
                          'count': None, '90%ile': None, '95%ile': None}
                   for task in tasks}
@@ -168,7 +170,7 @@ def remove_outliers(data, pids, tasks, save_stats=False):
 
         # for each task, choosing to remove PIDs with sequence lengths higher than 90%ile - always gives 90% number of PIDs
         l_0 = 0
-        u_90 = np.percentile(counts, 90)
+        u_90 = np.percentile(counts, percentile_threshold)
 
         new_lens = md[(md.len < u_90) & (md.len > l_0)]
         outliers = md[(md.len > u_90) | (md.len < l_0)]
@@ -389,12 +391,12 @@ def main():
     pids.remove(pids_to_remove[0])
 
     data = get_data(pids, tasks)
-    new_pids = remove_outliers(data, pids, tasks, save_stats=True)
+    new_pids = remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=False)
 
     stateful = False
     task_meta_data = {task: {'PIDs': None, 'median sequence length': None} for task in tasks}
 
-    tasks = ['Reading', 'Memory']
+    # tasks = ['Memory']
     for task in tasks:
         # task = 'PupilCalib'
         task_info = new_pids[new_pids.task == task]
@@ -403,7 +405,7 @@ def main():
         task_meta_data[task]['max sequence length'] = task_max_length = task_info.len.max()
 
         task_data = get_data(task_pids, task)[task]
-        task_median_length = 500
+        # task_median_length = 500
         truncated_data = pad_and_truncate(task_data, task_median_length, pad_val, pad_where, truncate_where)
 
         if stateful:
@@ -421,11 +423,12 @@ def main():
             metrics = cross_validate(truncated_data, strategy, seed)
             saved_metrics.append(metrics)
 
-        save_results(task, saved_metrics)
+        output_foldername = 'first_run_upto_median_ts_LSTM_10_Dense_4_50_50'
+        save_results(task, saved_metrics, output_foldername)
+        ResultsHandler.compile_results('LSTM', output_foldername)
 
 
-def save_results(task, saved_metrics, seed=None):
-    output_foldername = 'first_run_upto_500_ts_LSTM_10_Dense_4_50_50'
+def save_results(task, saved_metrics, output_foldername, seed=None):
     output_folder = os.path.join(results_path, output_foldername)
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
@@ -441,7 +444,7 @@ def save_results(task, saved_metrics, seed=None):
             metric_data = seed_metrics[metric_name]
             data = pd.DataFrame(metric_data, columns=['1'])
             data['metric'] = metric
-            data['model'] = 'LSTM'
+            data['model'] = 'LSTM_median'
             data['method'] = 'end_to_end'
             dfs += [data]
 
@@ -455,6 +458,6 @@ def save_results(task, saved_metrics, seed=None):
         print('results saved for {}'.format(task))
 
 
-
+main()
 
 
