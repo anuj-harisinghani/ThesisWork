@@ -6,14 +6,16 @@
 n_epochs: 50
 
 # steps_per_epoch: number of steps per epoch
-steps_per_epoch: 10
+steps_per_epoch: 50
 
 # batch_size: size of batch
 batch_size:
 
 pad_val: 15000.
 
-pad_where: 'start'
+pad_where: 'post'
+
+truncate_where: 'post'
 
 # Experiment params ----------------------------------------------------------------------------------------------------
 
