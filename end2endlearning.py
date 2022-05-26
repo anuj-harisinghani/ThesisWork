@@ -64,21 +64,23 @@ def neural_network(timesteps, data_dim, mask_value=0.):
 #     return model
 #
 
-#
-# def neural_network2(batch_size, timesteps, data_dim, mask_value=0., stateful=True, verbose=0):
-#     n_output = 2
-#     model = Sequential()
-#     model.add(Input(batch_input_shape=(batch_size, timesteps, data_dim)))
-#     model.add(Masking(mask_value=mask_value))
-#     model.add(LSTM(10, stateful=stateful, return_sequences=True))
-#     model.add(LSTM(5))
-#     # model.add(Dropout(0.5))
-#     # model.add(Dense(4, activation='relu'))
-#     model.add(Dense(n_output, activation='softmax'))
-#     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-#     if verbose != 0:
-#         print(model.summary())
-#     return model
+
+
+def neural_network2(batch_size, timesteps, data_dim, mask_value=0., stateful=True, verbose=0):
+    n_output = 2
+    model = Sequential()
+    model.add(Input(batch_input_shape=(batch_size, timesteps, data_dim)))
+    model.add(Masking(mask_value=mask_value))
+    model.add(LSTM(10, stateful=stateful, return_sequences=True))
+    model.add(LSTM(5))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(4, activation='relu'))
+    model.add(Dense(n_output, activation='softmax'))
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    if verbose != 0:
+        print(model.summary())
+    return model
+
 #
 
 #
@@ -262,7 +264,7 @@ def cross_validate(data, strategy, seed, stateful=False, task_median_length=None
         test_splits_c = np.array_split(pids, nfolds)  # currently nfolds = 10, this divides into 5 parts
         train_splits = [np.array(pids)[~np.in1d(pids, i)] for i in test_splits_c]  # makes 80:20 splits
         val_splits = [np.array_split(i, 2)[0] for i in test_splits_c]
-        test_splits = test_splits_c[[~np.in1d(test_splits_c[i], val_splits[i]) for i in range(len(test_splits_c))]]
+        test_splits = [test_splits_c[i][~np.in1d(test_splits_c[i], val_splits[i])] for i in range(len(test_splits_c))]
 
     else:
         test_splits = np.array_split(pids, nfolds)
@@ -308,24 +310,49 @@ def cross_validate(data, strategy, seed, stateful=False, task_median_length=None
 
 
         # divide into batches if stateful==True
-        # if stateful:
-        #     divisor = x_train.shape[1] // task_median_length
-        #     x_train = np.array(np.split(x_train, divisor, axis=1))
-        #     # x_train = some.reshape((some.shape[1], some.shape[0], some.shape[2], some.shape[3]))
-        #     # y_train = y_train[:, np.newaxis, :]
-        #     y_train = y_train[np.newaxis, :, :]
-        #     # y_train = np.repeat(y_train, divisor, axis=1)
-        #     y_train = np.repeat(y_train, divisor, axis=0)
-        #
-        #     net = neural_network2(batch_size=x_train.shape[1],
-        #                           timesteps=x_train.shape[2],
-        #                           data_dim=data_dim_dict[strategy],
-        #                           mask_value=pad_val,
-        #                           stateful=True)
-        #
-        #     net.reset_states()
-        #     history = net.fit(x_train[0], y_train[0], validation_data=validation_data,
-        #                           epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=1, shuffle=False)
+        if stateful:
+            divisor = 2
+            # x_train = np.array(np.split(x_train, divisor, axis=1))
+            x_train = np.array(np.split(x_train, divisor, axis=0))
+            # y_train = y_train[np.newaxis, :, :]
+            y_train = np.array(np.split(y_train, divisor, axis=0))
+            # y_train = np.repeat(y_train, divisor, axis=1)
+            # y_train = np.repeat(y_train, divisor, axis=0)
+
+
+            # net = neural_network2(batch_size=x_train.shape[1],
+            #                       timesteps=x_train.shape[2],
+            #                       data_dim=data_dim_dict[strategy],
+            #                       mask_value=pad_val,
+            #                       stateful=True)
+            batch_size = x_train.shape[1]
+            net = neural_network(task_median_length, data_dim_dict[strategy], mask_value=pad_val)
+            net2 = neural_network2(batch_size, task_median_length, data_dim_dict[strategy], mask_value=pad_val, stateful=True)
+            portion_size = 100
+            n_portions = x_train.shape[1] // portion_size
+            for epoch in range(epochs):
+                net.reset_states()
+                for batch_num in range(divisor):
+                    x_train_batch = x_train[batch_num]
+                    y_train_batch = y_train[batch_num]
+
+                    for i in range(n_portions):
+                        x_train_portion = x_train_batch[:, i*portion_size: (i+1)*portion_size, :]
+                        # y_train_portion = y_train_batch[i*portion_size: (i+1)*portion_size, :]
+                        loss, acc = net.train_on_batch(x_train_portion, y_train_batch, reset_metrics=False)
+
+
+
+
+            net = neural_network2(batch_size=divisor,
+                                  timesteps=x_train.shape[2],
+                                  data_dim=data_dim_dict[strategy],
+                                  mask_value=pad_val,
+                                  stateful=True)
+
+            net.reset_states()
+            history = net.fit(x_train[0], y_train[0], validation_data=validation_data,
+                                  epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=1, shuffle=False)
 
         # neural network
         # else:
@@ -368,6 +395,14 @@ def cross_validate(data, strategy, seed, stateful=False, task_median_length=None
     return metrics
 
 
+def make_batches(x, y, batch_size=None):
+    num_batches = x.shape[0] // batch_size if batch_size is not None else 1
+    x_batched = np.array(np.split(x, num_batches, axis=0))
+    y_batched = np.array(np.split(y, num_batches, axis=0))
+
+    return x_batched, y_batched, num_batches
+
+
 def main():
     lstm_params = ParamsHandler.load_parameters('LSTM_params')
 
@@ -406,6 +441,7 @@ def main():
 
         task_data = get_data(task_pids, task)[task]
         # task_median_length = 500
+        task_median_length = 200 if task == 'PupilCalib' else 1000
         truncated_data = pad_and_truncate(task_data, task_median_length, pad_val, pad_where, truncate_where)
 
         if stateful:
@@ -423,7 +459,7 @@ def main():
             metrics = cross_validate(truncated_data, strategy, seed)
             saved_metrics.append(metrics)
 
-        output_foldername = 'first_run_upto_median_ts_LSTM_10_Dense_4_50_50'
+        output_foldername = 'upto_1000_ts_LSTM_10_Dense_4_50_50_no_outliers_val_set'
         save_results(task, saved_metrics, output_foldername)
         ResultsHandler.compile_results('LSTM', output_foldername)
 
