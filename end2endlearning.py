@@ -20,11 +20,11 @@ import matplotlib.pyplot as plt
 
 # parameters for this file - warnings and tensorflow variables
 warnings.filterwarnings("ignore")
-dev = tf.config.list_physical_devices('GPU')[0]
-tf.config.experimental.set_memory_growth(dev, enable=True)
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+# dev = tf.config.list_physical_devices('GPU')[0]
+# tf.config.experimental.set_memory_growth(dev, enable=True)
+# tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 # tf.compat.v1.disable_eager_execution()
-os.environ['TF_DETERMINISTIC_OPS'] = '1'
+# os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 # some global variables
 settings = ParamsHandler.load_parameters('settings')
@@ -121,21 +121,30 @@ def neural_network2(batch_size, timesteps, data_dim, mask_value=0., stateful=Tru
 #
 
 
-def get_data(pids, tasks):
+def get_data(pids, tasks, return_meta_data=False):
     if type(tasks) == str:
         tasks = [tasks]
 
     data = {task: {pid: None for pid in pids} for task in tasks}
+    noise_per_pid = {task: {pid: None for pid in pids} for task in tasks}
+    task_noise_overall = {task: None for task in tasks}
     for task in tqdm(tasks, 'getting task data'):
         for pid in pids:
             pid_save_path = os.path.join(data_path, 'LSTM', pid)
             file = pd.read_csv(os.path.join(pid_save_path, task + '.csv'))
+            success = np.bincount(file['success'])
+            noise_percent = success[0] / sum(success)
+            noise_per_pid[task][pid] = noise_percent
             x_cols = ['gaze_0_x', 'gaze_0_y', 'gaze_0_z', 'gaze_1_x', 'gaze_1_y', 'gaze_1_z',
                       'gaze_angle_x', 'gaze_angle_y']
             x = np.array(file[x_cols])
             data[task][pid] = x
+        task_noise_overall[task] = np.mean(list(noise_per_pid[task].values()))
 
-    return data
+    if return_meta_data:
+        return data, task_noise_overall, noise_per_pid
+    else:
+        return data
 
 
 def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=False):
@@ -195,6 +204,16 @@ def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=Fals
         stats.to_csv(os.path.join('stats', 'LSTM', 'task_info', 'more_pids_task_stats.csv'))
         new_stats = pd.DataFrame(new_task_stats).transpose()
         new_stats.to_csv(os.path.join('stats', 'LSTM', 'task_info', 'outliers_removed_more_pids_task_stats.csv'))
+
+        for task in tasks:
+            task_data = new_pids[new_pids.task == task]
+            plt.figure()
+            plt.title(task+' sequence length distribution')
+            plt.xlabel('length of sequence')
+            plt.ylabel('number of participants')
+            plt.hist(task_data.len, bins=50)
+            plt.savefig(os.path.join('stats', 'LSTM', 'task_info', 'seq_dist_'+task+'.png'))
+            plt.close()
 
     return new_pids
 
