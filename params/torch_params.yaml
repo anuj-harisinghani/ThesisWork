@@ -1,0 +1,38 @@
+# Torch Params for PyTorch training
+
+# experiment params
+output_foldername: null
+
+# Cross Validation params
+seeds: 10
+folds: 10
+tasks: ['PupilCalib', 'CookieTheft', 'Reading', 'Memory']
+subsets: ['left', 'right', 'both_eyes', 'average', 'all']
+strategy: 'all'
+
+# data pre-processing params
+outlier_threshold: 90
+pad_where: 'post'  # 'pre'
+truncate_where: 'post'  # 'pre'
+final_length: 500  # if 0, then chooses median, will be overridden in stateful
+pad_val: -1
+batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
+
+# training params
+val_set: True
+epochs: 1000
+learning_rate: 0.001
+max_seq_len: 100
+verbose: True
+
+# neural network params
+network_type: 'GRU'
+input_size: 9
+output_size: 2
+hidden_size: 256
+bidirectional: False
+num_layers: 2
+dropout: 0.05
+
+
+data_dim_dict: {'left': 3, 'right': 3, 'both_eyes': 6, 'average': 3, 'all': 9}
