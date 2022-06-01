@@ -65,7 +65,6 @@ def neural_network(timesteps, data_dim, mask_value=0.):
 #
 
 
-
 def neural_network2(batch_size, timesteps, data_dim, mask_value=0., stateful=True, verbose=0):
     n_output = 2
     model = Sequential()
@@ -81,7 +80,6 @@ def neural_network2(batch_size, timesteps, data_dim, mask_value=0., stateful=Tru
         print(model.summary())
     return model
 
-#
 
 #
 # def extract_task_data(pids, tasks):
@@ -128,6 +126,7 @@ def get_data(pids, tasks, return_meta_data=False):
     data = {task: {pid: None for pid in pids} for task in tasks}
     noise_per_pid = {task: {pid: None for pid in pids} for task in tasks}
     task_noise_overall = {task: None for task in tasks}
+    task_noise_stats = {task: {'mean': None, 'std': None, 'min': None, 'max': None, 'total': None, 'count': None} for task in tasks}
     for task in tqdm(tasks, 'getting task data'):
         for pid in pids:
             pid_save_path = os.path.join(data_path, 'LSTM', pid)
@@ -139,10 +138,24 @@ def get_data(pids, tasks, return_meta_data=False):
                       'gaze_angle_x', 'gaze_angle_y']
             x = np.array(file[x_cols])
             data[task][pid] = x
+
         task_noise_overall[task] = np.mean(list(noise_per_pid[task].values()))
 
+    noise_df = pd.DataFrame(noise_per_pid)
+
+    for task in tasks:
+        task_noise_stats[task]['mean'] = noise_df[task].mean()
+        task_noise_stats[task]['std'] = noise_df[task].std()
+        task_noise_stats[task]['min'] = noise_df[task].min()
+        task_noise_stats[task]['max'] = noise_df[task].max()
+        task_noise_stats[task]['total'] = noise_df[task].sum()
+        task_noise_stats[task]['count'] = noise_df[task].count()
+
+    task_noise_stats = pd.DataFrame(task_noise_stats).transpose()
+    task_noise_stats.to_csv(os.path.join('stats', 'LSTM', 'task_info', 'task_noise_stats.csv'))
+
     if return_meta_data:
-        return data, task_noise_overall, noise_per_pid
+        return data, noise_df, task_noise_stats
     else:
         return data
 
@@ -208,11 +221,11 @@ def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=Fals
         for task in tasks:
             task_data = new_pids[new_pids.task == task]
             plt.figure()
-            plt.title(task+' sequence length distribution')
+            plt.title('outlier removed 90% '+task+' sequence length distribution')
             plt.xlabel('length of sequence')
             plt.ylabel('number of participants')
             plt.hist(task_data.len, bins=50)
-            plt.savefig(os.path.join('stats', 'LSTM', 'task_info', 'seq_dist_'+task+'.png'))
+            plt.savefig(os.path.join('stats', 'LSTM', 'task_info', 'outlier_removed_seq_dist_'+task+'.png'))
             plt.close()
 
     return new_pids

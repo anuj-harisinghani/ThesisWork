@@ -58,7 +58,7 @@ NUM_LAYERS = torch_params['num_layers']
 DROPOUT = torch_params['dropout']
 
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
+    OUTPUT_FOLDERNAME = 'p2_torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, MAX_SEQ_LEN)
 
 TORCH_PARAMS = torch_params
@@ -186,7 +186,7 @@ class Preprocess:
         self.max_sequence_length = max_sequence_length
         self.truncation_side = truncation_side
         self.pad_side = pad_side
-        self.min_seq_length_factor = 50
+        self.min_seq_length_factor = 100
         if task_max_length:
             self.max_sequence_length = math.ceil(
                 task_max_length / self.min_seq_length_factor) * self.min_seq_length_factor
@@ -400,9 +400,9 @@ def train(network: torch.nn.Module,
         val_metrics = evaluate(network, x_val, y_val, val_batches, criterion)
 
         # Pretty print the validation metrics
-        if VERBOSE:
-            print("\n Validation metrics for epoch {}/{}: \n".format(epoch + 1, EPOCHS))
-            pprint_metrics(val_metrics)
+        # if VERBOSE:
+        #     print("\n Validation metrics for epoch {}/{}: \n".format(epoch + 1, EPOCHS))
+        #     pprint_metrics(val_metrics)
 
         # Update best model
         avg_val_loss = val_metrics["loss"]
@@ -465,7 +465,7 @@ def evaluate(network: torch.nn.Module,
 
     # Compute the validation metrics
     avg_loss, avg_accuracy = np.mean(loss), np.mean(accuracy)
-    metrics = compute_metrics(y_true[:, 0], y_pred, y_scores[:, 0])
+    metrics = compute_metrics(y_true[:, 0], y_pred)
     metrics["loss"] = avg_loss
     metrics["accuracy"] = avg_accuracy
 
@@ -476,7 +476,7 @@ def evaluate(network: torch.nn.Module,
 
 
 # Cross Validate function
-def cross_validate(data, seed):
+def cross_validate(task, data, seed):
     torch.manual_seed(seed)
 
     nfolds = NFOLDS
@@ -540,50 +540,16 @@ def cross_validate(data, seed):
 
         # saving metrics
         for metric in list(cv_val_metrics.keys()):
+            if metric == 'loss' or metric == 'accuracy':
+                continue
             metrics[metric].append(cv_val_metrics[metric])
+        save_results(task, [metrics])
 
     return metrics
 
 
-def main():
-    # experiment variables
-    tasks = ['PupilCalib', 'CookieTheft', 'Reading', 'Memory']
-    pids = list(ttf.StudyID.unique())
-    pids_to_remove = ['HH-076']  # HH-076 being removed because the task timings are off compared to the video length
-
-    pids.remove(pids_to_remove[0])
-
-    data = get_data(pids, tasks)
-    new_pids = remove_outliers(data, pids, tasks, percentile_threshold=90,
-                               save_stats=False)  # percentile threshold 100 removes none
-
-    task_meta_data = {task: {'PIDs': None, 'median sequence length': None} for task in tasks}
-
-    for task in tasks:
-        task_info = new_pids[new_pids.task == task]
-        task_meta_data[task]['PIDs'] = task_pids = list(task_info.PID)
-        task_meta_data[task]['median sequence length'] = task_median_length = task_info.len.median()
-        task_meta_data[task]['max sequence length'] = task_max_length = task_info.len.max()
-
-        task_data = get_data(task_pids, task)[task]
-
-        truncated_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, task_max_length).pad_and_truncate(task_data)
-
-        # data = truncated_data
-        # seed = 0
-        # torch.manual_seed(seed)
-
-        saved_metrics = []
-        for seed in range(SEEDS):
-            metrics = cross_validate(truncated_data, seed)
-            saved_metrics.append(metrics)
-
-        save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
-        ResultsHandler.compile_results('LSTM', OUTPUT_FOLDERNAME)
-
-
 # save results function
-def save_results(task, saved_metrics, output_foldername, seed=None):
+def save_results(task, saved_metrics, output_foldername=OUTPUT_FOLDERNAME, seed=None):
 
     models_folder = os.path.join('models', OUTPUT_FOLDERNAME, 'torch_params')
     ParamsHandler.save_parameters(TORCH_PARAMS, models_folder)
@@ -615,3 +581,42 @@ def save_results(task, saved_metrics, output_foldername, seed=None):
 
         df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
         print('results saved for {}'.format(task))
+
+
+def main():
+    # experiment variables
+    # tasks = ['CookieTheft', 'Reading']
+    pids = list(ttf.StudyID.unique())
+    pids_to_remove = ['HH-076']  # HH-076 being removed because the task timings are off compared to the video length
+
+    pids.remove(pids_to_remove[0])
+
+    data = get_data(pids, TASKS)
+    new_pids = remove_outliers(data, pids, TASKS, percentile_threshold=OUTLIER_THRESHOLD,
+                               save_stats=False)  # percentile threshold 100 removes none
+
+    task_meta_data = {task: {'PIDs': None, 'median sequence length': None} for task in TASKS}
+
+    for task in TASKS:
+        # task = 'CookieTheft'
+        task_info = new_pids[new_pids.task == task]
+        task_meta_data[task]['PIDs'] = task_pids = list(task_info.PID)
+        task_meta_data[task]['median sequence length'] = task_median_length = task_info.len.median()
+        task_meta_data[task]['max sequence length'] = task_max_length = task_info.len.max()
+
+        task_data = get_data(task_pids, task)[task]
+
+        truncated_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, task_max_length).pad_and_truncate(task_data)
+
+        # data = truncated_data
+        # seed = 0
+        # torch.manual_seed(seed)
+
+        saved_metrics = []
+        for seed in range(SEEDS):
+            metrics = cross_validate(task, truncated_data, seed)
+            saved_metrics.append(metrics)
+
+        save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
+        ResultsHandler.compile_results('LSTM', OUTPUT_FOLDERNAME)
+
