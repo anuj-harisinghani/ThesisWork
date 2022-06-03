@@ -15,8 +15,9 @@ outlier_threshold: 90
 pad_where: 'post'  # 'pre'
 truncate_where: 'post'  # 'pre'
 final_length: 500  # if 0, then chooses median, will be overridden in stateful
-pad_val: -1
+pad_val: 0
 batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
+use_masked_arrays: False
 
 # training params
 val_set: True

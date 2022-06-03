@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import numpy.ma as ma
 import os
 import torch
 import math
@@ -7,6 +8,7 @@ import random
 
 from typing import Union, Callable
 from torch import nn
+from torch.nn.utils.rnn import pad_sequence, pad_packed_sequence, pack_padded_sequence
 from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_score, recall_score, confusion_matrix, \
     roc_curve
 from tqdm import tqdm
@@ -39,6 +41,7 @@ TRUNCATE_WHERE = torch_params['truncate_where']
 FINAL_LENGTH = torch_params['final_length']
 PAD_VAL = float(torch_params['pad_val'])
 BATCH_SIZE = torch_params['batch_size']
+USE_MASKED = torch_params['use_masked_arrays']
 
 # Training Params
 VAL_SET = torch_params['val_set']
@@ -75,7 +78,7 @@ results_path = os.path.join('results', 'LSTM')
 ttf = pd.read_csv(paths['ttf'])
 
 
-def get_data(pids, tasks):
+def get_data(pids, tasks=TASKS):
     if type(tasks) == str:
         tasks = [tasks]
 
@@ -92,7 +95,7 @@ def get_data(pids, tasks):
     return data
 
 
-def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=False):
+def remove_outliers(data, pids, tasks=TASKS, percentile_threshold=100, save_stats=False):
     task_stats = {task: {'mean': None, 'std': None, 'median': None, 'min': None, 'max': None, 'total': None,
                          'count': None, '90%ile': None, '95%ile': None}
                   for task in tasks}
@@ -148,44 +151,47 @@ def remove_outliers(data, pids, tasks, percentile_threshold=100, save_stats=Fals
 
 def subset_data(x_train, x_test, x_val, strategy):
     fold_train = fold_test = fold_val = None
+
     if strategy == 'left':
-        fold_train = np.array([x_train[i][:, :3] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, :3] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, :3] for j in range(len(x_val))]) if x_val is not None else None
+        fold_train = [xtr[:, :3] for xtr in x_train]
+        fold_test = [xte[:, :3] for xte in x_test]
+        fold_val = [xvl[:, :3] for xvl in x_val] if x_val is not None else None
 
     elif strategy == 'right':
-        fold_train = np.array([x_train[i][:, 3:6] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, 3:6] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, 3:6] for j in range(len(x_val))]) if x_val is not None else None
+        fold_train = [xtr[:, 3:6] for xtr in x_train]
+        fold_test = [xte[:, 3:6] for xte in x_test]
+        fold_val = [xvl[:, 3:6] for xvl in x_val] if x_val is not None else None
 
     elif strategy == 'average':
-        fold_train = np.array([np.mean((x_train[i][:, :3], x_train[i][:, 3:6]), axis=0) for i in range(len(x_train))])
-        fold_test = np.array([np.mean((x_test[i][:, :3], x_test[i][:, 3:6]), axis=0) for i in range(len(x_test))])
-        fold_val = np.array([np.mean((x_val[i][:, :3], x_val[i][:, 3:6]), axis=0) for i in
-                             range(len(x_val))]) if x_val is not None else None
+        left_train, left_test, left_val = subset_data(x_train, x_test, x_val, 'left')
+        right_train, right_test, right_val = subset_data(x_train, x_test, x_val, 'right')
+        fold_train = [np.mean((left_train[i], right_train[i]), axis=0) for i in range(len(x_train))]
+        fold_test = [np.mean((left_test[i], right_test[i]), axis=0) for i in range(len(x_test))]
+        fold_val = [np.mean((left_val[i], right_val[i]), axis=0)
+                    for i in range(len(x_val))] if x_val is not None else None
 
     elif strategy == 'both_eyes':
-        fold_train = np.array([x_train[i][:, :6] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, :6] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, :6] for j in range(len(x_val))]) if x_val is not None else None
+        fold_train = [xtr[:, :6] for xtr in x_train]
+        fold_test = [xte[:, :6] for xte in x_test]
+        fold_val = [xvl[:, :6] for xvl in x_val] if x_val is not None else None
 
     elif strategy == 'all':
         both_train, both_test, both_val = subset_data(x_train, x_test, x_val, 'both_eyes')
         avg_train, avg_test, avg_val = subset_data(x_train, x_test, x_val, 'average')
-        fold_train = np.array([np.hstack((both_train[i], avg_train[i])) for i in range(len(both_train))])
-        fold_test = np.array([np.hstack((both_test[i], avg_test[i])) for i in range(len(both_test))])
-        fold_val = np.array(
-            [np.hstack((both_val[i], avg_val[i])) for i in range(len(both_val))]) if x_val is not None else None
+        fold_train = [np.hstack((both_train[i], avg_train[i])) for i in range(len(both_train))]
+        fold_test = [np.hstack((both_test[i], avg_test[i])) for i in range(len(both_test))]
+        fold_val = [np.hstack((both_val[i], avg_val[i])) for i in range(len(both_val))] if x_val is not None else None
 
     return fold_train, fold_test, fold_val
 
 
 class Preprocess:
 
-    def __init__(self, max_sequence_length, pad_side, truncation_side, task_max_length=None):
+    def __init__(self, max_sequence_length, pad_side, truncation_side, task_max_length=None, return_masked=False):
         self.max_sequence_length = max_sequence_length
         self.truncation_side = truncation_side
         self.pad_side = pad_side
+        self.return_masked = return_masked
         self.min_seq_length_factor = 100
         if task_max_length:
             self.max_sequence_length = math.ceil(
@@ -199,11 +205,22 @@ class Preprocess:
         return truncated[self.truncation_side]
 
     def pad_sequence(self, sequence: np.array) -> np.array:
-        padding = np.full((self.max_sequence_length - len(sequence), sequence.shape[1]), PAD_VAL)
-        padded = {
-            'post': np.append(sequence, padding, axis=0),
-            'pre': np.append(padding, sequence, axis=0)
-        }
+        if self.return_masked:
+            padding = ma.masked_all((self.max_sequence_length - len(sequence), sequence.shape[1]))
+            padded = {
+                'post': ma.append(sequence, padding, axis=0),
+                'pre': ma.append(padding, sequence, axis=0),
+                'none': sequence
+            }
+
+        else:
+            padding = np.full((self.max_sequence_length - len(sequence), sequence.shape[1]), PAD_VAL)
+            padded = {
+                'post': np.append(sequence, padding, axis=0),
+                'pre': np.append(padding, sequence, axis=0),
+                'none': sequence
+            }
+
         return padded[self.pad_side]
 
     def transform(self, sequence: np.array) -> np.array:
@@ -226,7 +243,8 @@ class Preprocess:
 
 def make_batches(x, y, batch_size=None):
     num_batches = x.shape[0] // batch_size if batch_size is not None else 1
-    x_batched = np.array(np.split(x, num_batches, axis=0))
+    x_batched = np.array(np.split(x, num_batches, axis=0)) \
+        if not USE_MASKED else ma.masked_array(np.split(x, num_batches, axis=0))
     y_batched = np.array(np.split(y, num_batches, axis=0))
 
     return x_batched, y_batched, num_batches
@@ -313,7 +331,8 @@ class GRU(nn.Module):
 
         self.fc = nn.Linear(2 * self.hidden_size if BIDIRECTIONAL else self.hidden_size, OUTPUT_SIZE)
 
-    def init_state(self, batch_size: int) -> torch.Tensor:
+    def init_state(self, batch_size: int, using_packed=False) -> torch.Tensor:
+        self.using_packed = using_packed
         return torch.zeros(2 * self.num_layers if BIDIRECTIONAL else self.num_layers, batch_size, self.hidden_size)
 
     def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
@@ -322,17 +341,26 @@ class GRU(nn.Module):
         @param h: hidden state of shape [num_layers (2x if bidirectional), batch_size, hidden_size]
         """
         o, h = self.gru(x, h)
-        return self.fc(o[:, -1, :]), h
+        if self.using_packed:
+            o = pad_packed_sequence(o, batch_first=True)[0]
+        preds = self.fc(o[:, -1, :])
+        return preds, h
 
 
 def train(network: torch.nn.Module,
-          x_train: np.array, y_train: np.array, num_batches: int,
-          x_val: np.array, y_val: np.array, val_batches: int,
+          x_train: list, y_train: np.array, num_batches: int,
+          x_val: list, y_val: np.array, val_batches: int,
           criterion: Callable,
           fold: int) -> dict:
     optimizer = torch.optim.Adam(network.parameters(), lr=LEARNING_RATE)
     best_val_loss = 1000.0
     cv_val_metrics = None
+
+    # pad sequences here
+    train_lens = [len(i) for i in x_train]
+    val_lens = [len(i) for i in x_val]
+    x_train = pad_sequence(x_train, batch_first=True)
+    x_val = pad_sequence(x_val, batch_first=True)
 
     for epoch in range(EPOCHS):
         network = network.train()
@@ -344,20 +372,20 @@ def train(network: torch.nn.Module,
             optimizer.zero_grad()
 
             # Initialize the hidden state of the RNN and move it to device
-            h = network.init_state(x_train.shape[1]).to(DEVICE)
+            using_packed = True
+            h = network.init_state(x_train.shape[0], using_packed).to(DEVICE)
 
             batch_loss, batch_acc = [], []
             batch_run_loss, batch_run_acc = 0.0, 0.0
 
-            num_divisions = x_train.shape[2] // MAX_SEQ_LEN
-            x_batch = x_train[num]
-            y_batch = y_train[num]
+            num_divisions = x_train.shape[1] // MAX_SEQ_LEN + 1
 
             for division in range(num_divisions):
                 # Move training inputs and labels to device
-                x = x_batch[:, division * MAX_SEQ_LEN: (division + 1) * MAX_SEQ_LEN, :]
-                x = torch.from_numpy(x).float().to(DEVICE)
-                y = torch.from_numpy(y_batch).float().to(DEVICE)
+                x = x_train[:, division * MAX_SEQ_LEN: (division + 1) * MAX_SEQ_LEN, :]
+                x = x.to(DEVICE)
+                # y = torch.from_numpy(y_train).to(DEVICE)
+                y = torch.from_numpy(np.argmin(y_train, axis=1)).to(DEVICE)  # np.argmin = y_train[:,0], first column predictor
 
                 x.requires_grad = True
                 # y.requires_grad = True
@@ -506,13 +534,11 @@ def cross_validate(task, data, seed):
         # making train:test x, y, labels
         # fold = 0
         x_val = y_val = None
-        x_train = np.array([data[pid] for pid in train_splits[fold]])
+        x_train = [data[pid] for pid in train_splits[fold]]
         y_train = np.array([[[1, 0] if pid.startswith('E') else [0, 1]][0] for pid in train_splits[fold]])
-        # labels_train = np.array([pid for pid in train_splits[fold]])
 
-        x_test = np.array([data[pid] for pid in test_splits[fold]])
+        x_test = [data[pid] for pid in test_splits[fold]]
         y_test = np.array([[[1, 0] if pid.startswith('E') else [0, 1]][0] for pid in test_splits[fold]])
-        # labels_test = np.array([pid for pid in test_splits[fold]])
 
         n_train_hc, n_train_e = np.bincount(y_train[:, 0])
         n_test_hc, n_test_e = np.bincount(y_test[:, 0])
@@ -523,19 +549,21 @@ def cross_validate(task, data, seed):
         metrics['n_test_e'].append(n_test_e)
 
         if val_set:
-            x_val = np.array([data[pid] for pid in val_splits[fold]])
+            x_val = [data[pid] for pid in val_splits[fold]]
             y_val = np.array([[[1, 0] if pid.startswith('E') else [0, 1]][0] for pid in val_splits[fold]])
-            # labels_val = np.array([pid for pid in val_splits[fold]])
 
         # creating subset based on strategy
         x_train, x_test, x_val = subset_data(x_train, x_test, x_val, STRATEGY)
+        num_batches = num_val = 1
 
-        x_train, y_train, num_batches = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
-        x_test, y_test, num_test = make_batches(x_test, y_test, batch_size=BATCH_SIZE)
-        x_val, y_val, num_val = make_batches(x_val, y_val, batch_size=BATCH_SIZE)
+        # pad sequences using torch padding function
+        x_train = [torch.from_numpy(xtr).float() for xtr in x_train]
+        x_test = [torch.from_numpy(xte).float() for xte in x_test]
+        x_val = [torch.from_numpy(xvl).float() for xvl in x_val]
 
+        """# train the network"""
         network = GRU().float().to(DEVICE)
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=0)
         cv_val_metrics = train(network, x_train, y_train, num_batches, x_val, y_val, num_val, criterion, fold)
 
         # saving metrics
@@ -591,7 +619,7 @@ def main():
 
     pids.remove(pids_to_remove[0])
 
-    data = get_data(pids, TASKS)
+    data = get_data(pids)
     new_pids = remove_outliers(data, pids, TASKS, percentile_threshold=OUTLIER_THRESHOLD,
                                save_stats=False)  # percentile threshold 100 removes none
 
@@ -601,20 +629,18 @@ def main():
         # task = 'CookieTheft'
         task_info = new_pids[new_pids.task == task]
         task_meta_data[task]['PIDs'] = task_pids = list(task_info.PID)
-        task_meta_data[task]['median sequence length'] = task_median_length = task_info.len.median()
-        task_meta_data[task]['max sequence length'] = task_max_length = task_info.len.max()
+        # task_meta_data[task]['median sequence length'] = task_median_length = task_info.len.median()
+        # task_meta_data[task]['max sequence length'] = task_max_length = task_info.len.max()
 
         task_data = get_data(task_pids, task)[task]
 
-        truncated_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, task_max_length).pad_and_truncate(task_data)
-
-        # data = truncated_data
+        # data = task_data
         # seed = 0
         # torch.manual_seed(seed)
 
         saved_metrics = []
         for seed in range(SEEDS):
-            metrics = cross_validate(task, truncated_data, seed)
+            metrics = cross_validate(task, task_data, seed)
             saved_metrics.append(metrics)
 
         save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
