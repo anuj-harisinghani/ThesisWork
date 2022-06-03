@@ -24,7 +24,7 @@ val_set: True
 epochs: 1000
 learning_rate: 0.001
 max_seq_len: 100
-verbose: True
+verbose: False
 
 # neural network params
 network_type: 'GRU'

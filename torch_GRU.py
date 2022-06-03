@@ -58,7 +58,7 @@ NUM_LAYERS = torch_params['num_layers']
 DROPOUT = torch_params['dropout']
 
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'p2_torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
+    OUTPUT_FOLDERNAME = 'full_CV_torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, MAX_SEQ_LEN)
 
 TORCH_PARAMS = torch_params
@@ -67,12 +67,14 @@ if not os.path.exists(os.path.join('models', OUTPUT_FOLDERNAME)):
 
 
 # Paths
-settings = ParamsHandler.load_parameters('settings')
-paths = settings['paths'][os.name]
-input_path = paths['input']
-data_path = paths['data']
-results_path = os.path.join('results', 'LSTM')
-ttf = pd.read_csv(paths['ttf'])
+# settings = ParamsHandler.load_parameters('settings')
+# paths = settings['paths'][os.name]
+# input_path = paths['input']
+# data_path = paths['data']
+# ttf = pd.read_csv(paths['ttf'])
+results_path = os.path.join('results', 'LSTM', 'stateful')
+data_path = os.path.join('data')
+ttf = pd.read_csv(os.path.join(data_path, 'TasksTimestamps.csv'))
 
 
 def get_data(pids, tasks):
@@ -334,7 +336,7 @@ def train(network: torch.nn.Module,
     best_val_loss = 1000.0
     cv_val_metrics = None
 
-    for epoch in range(EPOCHS):
+    for epoch in tqdm(range(EPOCHS), desc='training fold {}'.format(fold), disable=True):
         network = network.train()
         train_loss, train_accuracy = [], []
         running_loss, running_accuracy = 0.0, 0.0
