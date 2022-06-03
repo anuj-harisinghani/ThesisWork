@@ -622,3 +622,4 @@ def main():
         save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
         ResultsHandler.compile_results('LSTM', OUTPUT_FOLDERNAME)
 
+main()
