@@ -1,0 +1,6 @@
+,clf,strategy,mae
+0,LinearReg,all,203.14054595320846
+1,LinearReg,avg,203.63636929732948
+2,LinearReg,both_eyes,203.499082004337
+3,LinearReg,left,210.44383930667982
+4,LinearReg,right,208.45018460783703

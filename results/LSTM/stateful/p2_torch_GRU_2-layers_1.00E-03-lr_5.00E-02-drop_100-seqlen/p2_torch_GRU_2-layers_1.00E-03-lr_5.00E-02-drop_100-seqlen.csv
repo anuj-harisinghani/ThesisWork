@@ -1,0 +1,3 @@
+﻿settings,model,acc,roc,f1,precision,recall,specificity
+Eye,LSTM_median,0.62±nan,0.63±nan,0.71±nan,0.69±nan,0.82±nan,0.43±nan
+Eye_Reading,LSTM_median,0.59±nan,0.59±nan,0.61±nan,0.65±nan,0.58±nan,0.6±nan
