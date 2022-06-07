@@ -4,6 +4,7 @@
 output_foldername: null
 
 # Cross Validation params
+cluster: False
 seeds: 1
 folds: 10
 tasks: ['CookieTheft', 'Reading']

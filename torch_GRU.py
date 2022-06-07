@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
 import torch
 import math
 import random
@@ -25,7 +26,8 @@ else:
 
 # torch params
 torch_params = ParamsHandler.load_parameters('torch_params')
-SEEDS = torch_params['seeds']
+CLUSTER = torch_params['cluster']
+SEEDS = np.arange(torch_params['seeds'])
 NFOLDS = torch_params['folds']
 TASKS = torch_params['tasks']
 STRATEGY = torch_params['strategy']
@@ -60,10 +62,11 @@ DROPOUT = torch_params['dropout']
 if not OUTPUT_FOLDERNAME:
     OUTPUT_FOLDERNAME = 'full_CV_torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, MAX_SEQ_LEN)
+    OUTPUT_FOLDERNAME = 'Full_CV_torch'
 
 TORCH_PARAMS = torch_params
-if not os.path.exists(os.path.join('models', OUTPUT_FOLDERNAME)):
-    os.mkdir(os.path.join('models', OUTPUT_FOLDERNAME))
+if not os.path.exists(os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME)):
+    os.mkdir(os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME))
 
 
 # Paths
@@ -72,8 +75,8 @@ if not os.path.exists(os.path.join('models', OUTPUT_FOLDERNAME)):
 # input_path = paths['input']
 # data_path = paths['data']
 # ttf = pd.read_csv(paths['ttf'])
-results_path = os.path.join('results', 'LSTM', 'stateful')
-data_path = os.path.join('data')
+results_path = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful')
+data_path = os.path.join(os.getcwd(), 'data')
 ttf = pd.read_csv(os.path.join(data_path, 'TasksTimestamps.csv'))
 
 
@@ -598,6 +601,8 @@ def main():
                                save_stats=False)  # percentile threshold 100 removes none
 
     task_meta_data = {task: {'PIDs': None, 'median sequence length': None} for task in TASKS}
+    if CLUSTER:
+        SEEDS = [sys.argv[1]]
 
     for task in TASKS:
         # task = 'CookieTheft'
@@ -615,11 +620,12 @@ def main():
         # torch.manual_seed(seed)
 
         saved_metrics = []
-        for seed in range(SEEDS):
+        for seed in SEEDS:
             metrics = cross_validate(task, truncated_data, seed)
             saved_metrics.append(metrics)
 
         save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
         ResultsHandler.compile_results('LSTM', OUTPUT_FOLDERNAME)
+
 
 main()
