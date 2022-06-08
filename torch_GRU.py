@@ -11,10 +11,8 @@ from torch import nn
 from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_score, recall_score, confusion_matrix, \
     roc_curve
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 from ParamsHandler import ParamsHandler
-from ModelHandler import ClassifiersFactory
 from ResultsHandler import ResultsHandler
 
 # Torch Device
@@ -26,6 +24,7 @@ else:
 
 # torch params
 torch_params = ParamsHandler.load_parameters('torch_params')
+# MP_FLAG = torch_params['multi_processing']
 CLUSTER = torch_params['cluster']
 SEEDS = np.arange(torch_params['seeds'])
 NFOLDS = torch_params['folds']
@@ -60,21 +59,13 @@ NUM_LAYERS = torch_params['num_layers']
 DROPOUT = torch_params['dropout']
 
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'full_CV_torch_{}_{}-layers_{:.2E}-lr_{:.2E}-drop_{}-seqlen'.\
+    OUTPUT_FOLDERNAME = 'full_CV_torch'. \
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, MAX_SEQ_LEN)
-    OUTPUT_FOLDERNAME = 'Full_CV_torch'
 
 TORCH_PARAMS = torch_params
 if not os.path.exists(os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME)):
     os.mkdir(os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME))
 
-
-# Paths
-# settings = ParamsHandler.load_parameters('settings')
-# paths = settings['paths'][os.name]
-# input_path = paths['input']
-# data_path = paths['data']
-# ttf = pd.read_csv(paths['ttf'])
 results_path = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful')
 data_path = os.path.join(os.getcwd(), 'data')
 ttf = pd.read_csv(os.path.join(data_path, 'TasksTimestamps.csv'))
@@ -400,7 +391,7 @@ def train(network: torch.nn.Module,
 
         if VERBOSE:
             print("[ EPOCH {}/{} --> Avg train loss: {:.4f} - Avg train accuracy: {:.4f} ]".
-                  format(epoch+1, EPOCHS, avg_train_loss, avg_train_accuracy))
+                  format(epoch + 1, EPOCHS, avg_train_loss, avg_train_accuracy))
 
         val_metrics = evaluate(network, x_val, y_val, val_batches, criterion)
 
@@ -416,7 +407,8 @@ def train(network: torch.nn.Module,
                 print("\n Avg val loss ({:.4f}) better that current best val loss ({:.4f}) \n".format(avg_val_loss,
                                                                                                       best_val_loss))
                 print("\n --> Saving new best model... \n")
-            torch.save(network.state_dict(), os.path.join('models', OUTPUT_FOLDERNAME, 'fold_{}_best_model.pth'.format(fold)))
+            torch.save(network.state_dict(),
+                       os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME, 'fold_{}_best_model.pth'.format(fold)))
             best_val_loss = val_metrics["loss"]
             cv_val_metrics = val_metrics
 
@@ -548,49 +540,52 @@ def cross_validate(task, data, seed):
             if metric == 'loss' or metric == 'accuracy':
                 continue
             metrics[metric].append(cv_val_metrics[metric])
-        save_results(task, [metrics])
 
+    # print('saving {} seed metrics'.format(seed))
+    save_results(task, [metrics], seed=seed)
     return metrics
 
 
 # save results function
 def save_results(task, saved_metrics, output_foldername=OUTPUT_FOLDERNAME, seed=None):
-
-    models_folder = os.path.join('models', OUTPUT_FOLDERNAME, 'torch_params')
+    models_folder = os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME, 'torch_params')
     ParamsHandler.save_parameters(TORCH_PARAMS, models_folder)
 
-    output_folder = os.path.join(results_path, output_foldername)
+    output_folder = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful', OUTPUT_FOLDERNAME)
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
 
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
     metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity']
-    metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall', 'specificity': 'spec'}
+    metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall',
+                    'specificity': 'spec'}
 
-    for i, seed_metrics in enumerate(saved_metrics):
-        dfs = []
-        for metric in metrics:
-            metric_name = metric_names[metric]
-            metric_data = seed_metrics[metric_name]
-            data = pd.DataFrame(metric_data, columns=['1'])
-            data['metric'] = metric
-            data['model'] = 'LSTM_median'
-            data['method'] = 'end_to_end'
-            dfs += [data]
+    seed_metrics = saved_metrics[0]
+    dfs = []
+    for metric in metrics:
+        metric_name = metric_names[metric]
+        metric_data = seed_metrics[metric_name]
+        data = pd.DataFrame(metric_data, columns=['1'])
+        data['metric'] = metric
+        data['model'] = 'LSTM_median'
+        data['method'] = 'end_to_end'
+        dfs += [data]
 
-        df = pd.concat(dfs, axis=0, ignore_index=True)
+    df = pd.concat(dfs, axis=0, ignore_index=True)
+    print('saving result for specified seed, not iterated', seed)
+    seed_path = os.path.join(output_folder, str(seed))
+    if not os.path.exists(seed_path):
+        os.mkdir(seed_path)
 
-        seed_path = os.path.join(output_folder, str(i))
-        if not os.path.exists(seed_path):
-            os.mkdir(seed_path)
-
-        df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
-        print('results saved for {}'.format(task))
+    df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
+    print('results saved for {}'.format(task))
 
 
 def main():
-    # experiment variables
-    # tasks = ['CookieTheft', 'Reading']
+    global TASKS
+    TASKS = [sys.argv[1]]
+    print('doing this for only task', TASKS, type(TASKS))
+    global SEEDS
     pids = list(ttf.StudyID.unique())
     pids_to_remove = ['HH-076']  # HH-076 being removed because the task timings are off compared to the video length
 
@@ -601,11 +596,13 @@ def main():
                                save_stats=False)  # percentile threshold 100 removes none
 
     task_meta_data = {task: {'PIDs': None, 'median sequence length': None} for task in TASKS}
+
+    SEEDS = np.arange(int(sys.argv[2]), int(sys.argv[3]))
     if CLUSTER:
-        SEEDS = [sys.argv[1]]
+        SEEDS = [int(sys.argv[1])]
 
     for task in TASKS:
-        # task = 'CookieTheft'
+        print('processing {} task'.format(task))
         task_info = new_pids[new_pids.task == task]
         task_meta_data[task]['PIDs'] = task_pids = list(task_info.PID)
         task_meta_data[task]['median sequence length'] = task_median_length = task_info.len.median()
@@ -613,19 +610,16 @@ def main():
 
         task_data = get_data(task_pids, task)[task]
 
-        truncated_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, task_max_length).pad_and_truncate(task_data)
+        truncated_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, task_max_length).pad_and_truncate(
+            task_data)
 
-        # data = truncated_data
-        # seed = 0
-        # torch.manual_seed(seed)
-
-        saved_metrics = []
+        print('SEEDS are ', SEEDS)
         for seed in SEEDS:
-            metrics = cross_validate(task, truncated_data, seed)
-            saved_metrics.append(metrics)
+            cross_validate(task, truncated_data, seed)
 
-        save_results(task, saved_metrics, OUTPUT_FOLDERNAME)
-        ResultsHandler.compile_results('LSTM', OUTPUT_FOLDERNAME)
+    # average results across seeds and place it in a CSV file
+    ResultsHandler.compile_results(os.path.join('LSTM', 'stateful'), OUTPUT_FOLDERNAME)
 
 
-main()
+if __name__ == '__main__':
+    main()

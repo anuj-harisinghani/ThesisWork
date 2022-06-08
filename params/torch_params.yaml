@@ -3,9 +3,12 @@
 # experiment params
 output_foldername: null
 
-# Cross Validation params
+# cluster_params
 cluster: False
-seeds: 1
+multi_processing: True
+
+# Cross Validation params
+seeds: 10
 folds: 10
 tasks: ['CookieTheft', 'Reading']
 subsets: ['left', 'right', 'both_eyes', 'average', 'all']
