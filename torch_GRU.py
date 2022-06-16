@@ -22,6 +22,10 @@ if not torch.cuda.is_available():
 else:
     DEVICE = torch.device(0)
 
+import warnings
+
+warnings.filterwarnings("ignore")
+
 # torch params
 torch_params = ParamsHandler.load_parameters('torch_params')
 TORCH_PARAMS = torch_params
@@ -46,7 +50,7 @@ BATCH_SIZE = torch_params['batch_size']
 VAL_SET = torch_params['val_set']
 EPOCHS = torch_params['epochs']
 LEARNING_RATE = torch_params['learning_rate']
-MAX_SEQ_LEN = torch_params['max_seq_len']
+CHUNK_LEN = torch_params['max_seq_len']
 VERBOSE = torch_params['verbose']
 
 # Neural Network Params
@@ -61,8 +65,8 @@ DROPOUT = torch_params['dropout']
 
 # if OUTPUT_FOLDERNAME is set as None in the params file, then create a name based on other parameters
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'full_CV_torch'. \
-        format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, MAX_SEQ_LEN)
+    OUTPUT_FOLDERNAME = 'full_CV_torch_with_static_half_threshold'. \
+        format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, CHUNK_LEN)
 
 # Handle paths for reading data and saving information
 if not os.path.exists(os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME)):
@@ -368,21 +372,26 @@ class GRU(nn.Module):
 
 
 def train(network: torch.nn.Module,
-          x_train: np.array, y_train: np.array, labels_train: np.array, num_batches: int,
+          x_train: np.array, y_train: np.array, labels_train: np.array, num_train: int,
           x_val: np.array, y_val: np.array, labels_val: np.array, val_batches: int,
           criterion: Callable,
           fold: int) -> tuple:
     optimizer = torch.optim.Adam(network.parameters(), lr=LEARNING_RATE)
     best_val_loss = 1000.0
+
     fold_val_metrics = None
-    fold_pred_probs = None
+    fold_val_pred_probs = None
+    fold_best_threshold = None
+
+    loss_value, batch_accuracy = None, None
+    batch_loss, batch_acc = None, None
 
     for epoch in tqdm(range(EPOCHS), desc='training fold {}'.format(fold), disable=True):
         network = network.train()
         train_loss, train_accuracy = [], []
-        running_loss, running_accuracy = 0.0, 0.0
+        # running_loss, running_accuracy = 0.0, 0.0
 
-        for batch_num in tqdm(range(num_batches), desc='training epoch {}/{}'.format(epoch + 1, EPOCHS), disable=True):
+        for batch_num in tqdm(range(num_train), desc='training epoch {}/{}'.format(epoch + 1, EPOCHS), disable=True):
             # Zero out all the gradients
             optimizer.zero_grad()
 
@@ -392,13 +401,13 @@ def train(network: torch.nn.Module,
             batch_loss, batch_acc = [], []
             batch_run_loss, batch_run_acc = 0.0, 0.0
 
-            num_divisions = x_train.shape[2] // MAX_SEQ_LEN    #  CHUNK_LEN
+            num_divisions = x_train.shape[2] // CHUNK_LEN  # CHUNK_LEN
             x_batch = x_train[batch_num]
             y_batch = y_train[batch_num]
 
             for division in range(num_divisions):
                 # Move training inputs and labels to device
-                x = x_batch[:, division * MAX_SEQ_LEN: (division + 1) * MAX_SEQ_LEN, :]
+                x = x_batch[:, division * CHUNK_LEN: (division + 1) * CHUNK_LEN, :]
                 x = torch.from_numpy(x).float().to(DEVICE)
                 y = torch.from_numpy(y_batch).float().to(DEVICE)
 
@@ -441,7 +450,7 @@ def train(network: torch.nn.Module,
             print("[ EPOCH {}/{} --> Avg train loss: {:.4f} - Avg train accuracy: {:.4f} ]".
                   format(epoch + 1, EPOCHS, avg_train_loss, avg_train_accuracy))
 
-        val_metrics, pred_probs = evaluate(network, x_val, y_val, labels_val, val_batches, criterion)
+        val_metrics, pred_probs, threshold = evaluate(network, x_val, y_val, labels_val, val_batches, criterion)
 
         # Pretty print the validation metrics
         # if VERBOSE:
@@ -460,9 +469,10 @@ def train(network: torch.nn.Module,
 
             best_val_loss = val_metrics["loss"]
             fold_val_metrics = val_metrics
-            fold_pred_probs = pred_probs
+            fold_val_pred_probs = pred_probs
+            fold_best_threshold = threshold
 
-    return fold_val_metrics, fold_pred_probs
+    return fold_val_metrics, fold_val_pred_probs, fold_best_threshold
 
 
 """## Evaluation"""
@@ -470,7 +480,7 @@ def train(network: torch.nn.Module,
 
 def evaluate(network: torch.nn.Module,
              x_test: np.array, y_test: np.array, pids_test: np.array, num_test: int,
-             criterion: torch.optim) -> tuple:
+             criterion: torch.optim, pre_trained_threshold: float = None) -> tuple:
     network = network.eval()
 
     y_scores, y_true = [], []
@@ -516,11 +526,14 @@ def evaluate(network: torch.nn.Module,
             y_scores, y_true = np.array(y_scores).reshape((len(y_scores), 2)), np.array(y_true)
 
     # Compute predicted labels based on the optimal ROC threshold
-    # yhat_probs = np.array(yhat_probs)
-    # threshold = compute_optimal_roc_threshold(y_true[:, 0], y_scores[:, 0])  # check if results change if there is no threshold
-    threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])  # check if results change if there is no threshold
-    print('yhat threshold', threshold)
-    threshold = 0.5
+    if pre_trained_threshold:
+        threshold = pre_trained_threshold
+        print('using pre_trained_threshold, this is test set')
+    else:
+        # threshold = compute_optimal_roc_threshold(y_true[:, 0], y_scores[:, 0])  # check if results change if there is no threshold
+        threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])
+        print('computing optimal threshold, this is validation set')
+
     # y_pred = np.array(y_scores[:, 0] >= threshold, dtype=int)
     y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
 
@@ -530,7 +543,7 @@ def evaluate(network: torch.nn.Module,
     metrics["loss"] = avg_loss
     metrics["accuracy"] = avg_accuracy
 
-    return metrics, pred_probs
+    return metrics, pred_probs, threshold
 
 
 """# Cross Validation"""
@@ -551,8 +564,8 @@ def cross_validate(task, data, seed):
     if VAL_SET:
         for s in range(NFOLDS):
             test_splits.append(splits[s])
-            val_splits.append(splits[(s+1) % 10])
-            train_splits.append(np.array(pids)[~np.in1d(pids, np.append(splits[s], splits[(s+1) % 10]))])
+            val_splits.append(splits[(s + 1) % 10])
+            train_splits.append(np.array(pids)[~np.in1d(pids, np.append(splits[s], splits[(s + 1) % 10]))])
 
     else:
         val_splits = None
@@ -577,7 +590,7 @@ def cross_validate(task, data, seed):
 
     metrics = {'roc': [], 'acc': [], 'f1': [], 'prec': [], 'recall': [], 'spec': [],
                'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [],
-               'n_train_hc': [], 'n_train_e': [], 'n_test_hc': [], 'n_test_e': []}
+               'n_train_hc': [], 'n_train_e': [], 'n_test_hc': [], 'n_test_e': [], 'n_val_hc': [], 'n_val_e': []}
 
     # going through all folds to create fold-specific train-test sets
     for fold in tqdm(range(NFOLDS), desc='seed: {} training'.format(seed)):
@@ -612,15 +625,17 @@ def cross_validate(task, data, seed):
         # creating subset based on strategy
         x_train, x_test, x_val = subset_data(x_train, x_test, x_val, STRATEGY)
 
-        x_train, y_train, num_batches = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
+        x_train, y_train, num_train = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
         x_test, y_test, num_test = make_batches(x_test, y_test, batch_size=BATCH_SIZE)
         x_val, y_val, num_val = make_batches(x_val, y_val, batch_size=BATCH_SIZE)
 
         # initialize the NN and Loss function
         network = GRU().float().to(DEVICE)
         criterion = nn.CrossEntropyLoss()
-        fold_val_metrics, fold_pred_probs = train(network, x_train, y_train, pids_train, num_batches,
-                                                  x_val, y_val, pids_val, num_val, criterion, fold)
+        fold_val_metrics, fold_val_pred_probs, best_val_threshold = \
+            train(network, x_train, y_train, pids_train, num_train,
+                  x_val, y_val, pids_val, num_val,
+                  criterion, fold)
 
         # saving metrics
         for metric in list(fold_val_metrics.keys()):
@@ -669,7 +684,6 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
 
 
 def main():
-
     global SEEDS
     global TASKS
 
@@ -689,9 +703,10 @@ def main():
         print('processing {} task'.format(task))
         task_info = new_pids[new_pids.task == task]
         task_pids = list(task_info.PID)
-        task_median_length = task_info.len.median()                     # for FINAL_LENGTH to be task_median_length, if needed
-        task_90_perc_length = round(np.percentile(task_info.len, 90))   # this is used to keep 100% PIDs, but truncate everything to 90% ile length
-        task_max_length = task_info.len.max()                           # this is used when outlier removal is at 90% already, but removes some PIDs
+        # task_median_length = task_info.len.median()                     # for FINAL_LENGTH to be task_median_length, if needed
+        task_90_perc_length = round(np.percentile(task_info.len,
+                                                  90))  # this is used to keep 100% PIDs, but truncate everything to 90% ile length
+        # task_max_length = task_info.len.max()                           # this is used when outlier removal is at 90% already, but removes some PIDs
 
         task_data = get_data(task_pids, task)[task]
 
@@ -713,7 +728,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
 # Extra function
 """
