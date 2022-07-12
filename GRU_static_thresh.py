@@ -28,7 +28,6 @@ warnings.filterwarnings("ignore")
 # torch params
 torch_params = ParamsHandler.load_parameters('torch_params')
 TORCH_PARAMS = torch_params
-# MP_FLAG = torch_params['multi_processing']
 CLUSTER = torch_params['cluster']
 SEEDS = np.arange(torch_params['seeds'])
 NFOLDS = torch_params['folds']
@@ -50,6 +49,7 @@ VAL_SET = torch_params['val_set']
 EPOCHS = torch_params['epochs']
 LEARNING_RATE = torch_params['learning_rate']
 CHUNK_LEN = torch_params['chunk_len']
+CHUNK_PROCESSING = torch_params['multi_chunk']
 VERBOSE = torch_params['verbose']
 
 # Neural Network Params
@@ -64,7 +64,7 @@ DROPOUT = torch_params['dropout']
 
 # if OUTPUT_FOLDERNAME is set as None in the params file, then create a name based on other parameters
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'full_CV_torch_with_static_half_threshold'. \
+    OUTPUT_FOLDERNAME = 'full_CV_torch_single_chunk_500_chunk_size_1'. \
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, CHUNK_LEN)
 
 # Handle paths for reading data and saving information
@@ -233,8 +233,7 @@ def subset_data(x_train, x_test, x_val, strategy):
 
 
 class Preprocess:
-
-    def __init__(self, max_sequence_length, pad_side, truncation_side, chunk_compatible=True):
+    def __init__(self, max_sequence_length, pad_side, truncation_side, chunk_compatible=CHUNK_PROCESSING):
         self.max_sequence_length = max_sequence_length
         self.truncation_side = truncation_side
         self.pad_side = pad_side
@@ -323,6 +322,10 @@ def compute_metrics(y_true: np.array, y_pred: np.array) -> dict:
         "prec": precision_score(y_true, y_pred),
         "recall": recall_score(y_true, y_pred),
         "spec": tn / (tn + fp),
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn
         # "combined": (sensitivity + specificity) / 2,
     }
 
@@ -450,12 +453,7 @@ def train(network: torch.nn.Module,
             print("[ EPOCH {}/{} --> Avg train loss: {:.4f} - Avg train accuracy: {:.4f} ]".
                   format(epoch + 1, EPOCHS, avg_train_loss, avg_train_accuracy))
 
-        val_metrics, _, pred_probs, threshold = evaluate(network, x_val, y_val, pids_val, num_val, criterion)
-
-        # Pretty print the validation metrics
-        # if VERBOSE:
-        #     print("\n Validation metrics for epoch {}/{}: \n".format(epoch + 1, EPOCHS))
-        #     pprint_metrics(val_metrics)
+        val_metrics, _, pred_probs, threshold = evaluate(network, x_val, y_val, pids_val, num_val, criterion, pre_trained_threshold=0.5)
 
         # Update best model
         avg_val_loss = val_metrics["loss"]
@@ -488,7 +486,6 @@ def evaluate(network: torch.nn.Module,
 
     y_scores, y_true = [], []
     loss, accuracy = [], []
-    running_loss, running_accuracy = 0.0, 0.0
 
     preds = {}
     pred_probs = {}
@@ -514,10 +511,6 @@ def evaluate(network: torch.nn.Module,
             for i in range(len(pids_test)):
                 pred_probs[pids_test[i]] = yhat_probs[i]
 
-            # Accumulate validation loss and accuracy for the log
-            # running_loss += loss_value
-            # running_accuracy += batch_accuracy
-
             # Store all validation loss and accuracy values for computing avg
             loss += [loss_value]
             accuracy += [batch_accuracy]
@@ -531,11 +524,11 @@ def evaluate(network: torch.nn.Module,
     # Compute predicted labels based on the optimal ROC threshold
     if pre_trained_threshold:
         threshold = pre_trained_threshold
-        print('using pre_trained_threshold, this is test set')
+        # print('using pre_trained_threshold, this is test set')
     else:
         # threshold = compute_optimal_roc_threshold(y_true[:, 0], y_scores[:, 0])  # check if results change if there is no threshold
         threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])
-        print('computing optimal threshold, this is validation set')
+        # print('computing optimal threshold, this is validation set')
 
     # y_pred = np.array(y_scores[:, 0] >= threshold, dtype=int)
     y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
@@ -576,7 +569,7 @@ def cross_validate(task, data, seed):
             test_splits.append(splits[s])
             train_splits.append(np.array(pids)[~np.in1d(pids, splits[s])])
 
-    metrics = {'roc': [], 'acc': [], 'f1': [], 'prec': [], 'recall': [], 'spec': [],
+    metrics = {'roc': [], 'acc': [], 'f1': [], 'prec': [], 'recall': [], 'spec': [], 'tp': [], 'fp': [], 'fn': [], 'tn': [],
                'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [],
                'n_train_hc': [], 'n_train_e': [], 'n_test_hc': [], 'n_test_e': [], 'n_val_hc': [], 'n_val_e': []}
 
@@ -610,9 +603,6 @@ def cross_validate(task, data, seed):
             y_val = np.array([[[1, 0] if pid.startswith('E') else [0, 1]][0] for pid in val_splits[fold]])
             pids_val = np.array(val_splits[fold])
 
-        # if LEGACY_SUBSET:
-        #     x_train, x_test, x_val = subset_data(x_train, x_test, x_val, STRATEGY)
-
         # dividing sequences into batches
         """
         specifying BATCH_SIZE groups BATCH_SIZE number of sequences together into 1 batch
@@ -640,7 +630,7 @@ def cross_validate(task, data, seed):
         saved_model_fold_path = os.path.join(model_save_path, 'fold_{}_best_model.pth'.format(fold))
         network.load_state_dict(torch.load(saved_model_fold_path))
         test_metrics, fold_preds, fold_pred_probs, _ = evaluate(network, x_test, y_test, pids_test, num_test,
-                                                                criterion, best_val_threshold)
+                                                                criterion, pre_trained_threshold=0.5)
 
         # saving metrics
         for metric in list(test_metrics.keys()):
@@ -663,9 +653,9 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
         os.mkdir(output_folder)
 
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
-    metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity']
+    metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']
     metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall',
-                    'specificity': 'spec'}
+                    'specificity': 'spec', 'tp': 'tp', 'fp': 'fp', 'fn': 'fn', 'tn':'tn'}
 
     seed_metrics = saved_metrics[0]
     dfs = []
@@ -674,8 +664,8 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
         metric_data = seed_metrics[metric_name]
         data = pd.DataFrame(metric_data, columns=['1'])
         data['metric'] = metric
-        data['model'] = 'LSTM_median'
-        data['method'] = 'end_to_end'
+        data['model'] = 'GRU'
+        data['method'] = 'multi-chunk'
         dfs += [data]
 
     df = pd.concat(dfs, axis=0, ignore_index=True)
@@ -714,6 +704,9 @@ def main():
         task_data = get_data(task_pids, task)[task]
         processed_data = Preprocess(task_90_perc_length, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=True).pad_and_truncate(
             task_data)
+
+        # processed_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=False).pad_and_truncate(
+        #     task_data)
 
         print('SEEDS are ', SEEDS)
         for seed in SEEDS:
