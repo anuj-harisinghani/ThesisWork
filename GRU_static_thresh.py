@@ -522,6 +522,11 @@ def evaluate(network: torch.nn.Module,
             y_scores, y_true = np.array(y_scores).reshape((len(y_scores), 2)), np.array(y_true)
 
     # Compute predicted labels based on the optimal ROC threshold
+    """
+    This is where I changed the threshold calculation. If given a threshold, that would be used.
+    For training, validation and testing I have chosen to send in the pre_trained_threshold as 0.5 (check CV function)
+    So, always 0.5 will be used. But anything can be sent if required. Or calculated on the spot. (extra functionalities)
+    """
     if pre_trained_threshold:
         threshold = pre_trained_threshold
         # print('using pre_trained_threshold, this is test set')
@@ -627,6 +632,9 @@ def cross_validate(task, data, seed):
         print('\nTraining complete --------------------------------------------------------------------')
 
         # test
+        """
+        pre-trained threshold is always 0.5
+        """
         saved_model_fold_path = os.path.join(model_save_path, 'fold_{}_best_model.pth'.format(fold))
         network.load_state_dict(torch.load(saved_model_fold_path))
         test_metrics, fold_preds, fold_pred_probs, _ = evaluate(network, x_test, y_test, pids_test, num_test,
