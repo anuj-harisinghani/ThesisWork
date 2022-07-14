@@ -5,6 +5,7 @@ import sys
 import torch
 import math
 import random
+import shutil
 
 from typing import Callable
 from torch import nn
@@ -659,6 +660,7 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
     output_folder = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful', OUTPUT_FOLDERNAME)
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
+    shutil.copy(os.path.join(os.getcwd(), 'params', 'torch_params.yaml'), output_folder)
 
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
     metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']
