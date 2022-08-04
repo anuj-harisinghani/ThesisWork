@@ -73,7 +73,7 @@ if not OUTPUT_FOLDERNAME:
 # Handle paths for reading data and saving information
 model_save_path = os.path.join(os.getcwd(), 'models', 'chunk_'+DATASET, OUTPUT_FOLDERNAME)
 if not os.path.exists(model_save_path):
-    os.mkdir(os.path.join(model_save_path))
+    os.makedirs(model_save_path, exist_ok=True)
 
 results_path = os.path.join(os.getcwd(), 'results', 'chunk_'+DATASET)
 data_path = os.path.join(os.getcwd(), 'data')
@@ -249,7 +249,7 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
     return new_pids
 
 
-def tobii_cyclical_split(x, y, pids, n_splits=15):
+def tobii_cyclical_split(x, y, pids, n_splits):
     """
     function tobii_cyclical_split --> function to split tobii sequences cyclically, and repeating participants
     within a set. Will only be called inside CrossValidator, for Tobii Dataset. Result is reshaped np arrays, with
@@ -653,9 +653,10 @@ def cross_validate(task, data, seed):
 
         if DATASET == 'tobii':
             # cyclical split required
-            x_train, y_train, pids_train = tobii_cyclical_split(x_train, y_train, pids_train)
-            x_test, y_test, pids_test = tobii_cyclical_split(x_test, y_test, pids_test)
-            x_val, y_val, pids_val = tobii_cyclical_split(x_val, y_val, pids_val)
+            cyclical_splits = 15 if task == 'CookieTheft' else 10
+            x_train, y_train, pids_train = tobii_cyclical_split(x_train, y_train, pids_train, cyclical_splits)
+            x_test, y_test, pids_test = tobii_cyclical_split(x_test, y_test, pids_test, cyclical_splits)
+            x_val, y_val, pids_val = tobii_cyclical_split(x_val, y_val, pids_val, cyclical_splits)
 
         # dividing sequences into batches
         """
