@@ -6,6 +6,7 @@ import torch
 import math
 import random
 import shutil
+import matplotlib.pyplot as plt
 
 from typing import Callable
 from torch import nn
@@ -33,6 +34,7 @@ CLUSTER = torch_params['cluster']
 SEEDS = np.arange(torch_params['seeds'])
 NFOLDS = torch_params['folds']
 TASKS = torch_params['tasks']
+DATASET = torch_params['dataset']
 STRATEGY = torch_params['strategy']
 OUTPUT_FOLDERNAME = torch_params['output_foldername']
 DATA_DIM_DICT = torch_params['data_dim_dict']
@@ -69,23 +71,28 @@ if not OUTPUT_FOLDERNAME:
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, CHUNK_LEN)
 
 # Handle paths for reading data and saving information
-model_save_path = os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME)
+model_save_path = os.path.join(os.getcwd(), 'models', 'chunk_'+DATASET, OUTPUT_FOLDERNAME)
 if not os.path.exists(model_save_path):
     os.mkdir(os.path.join(model_save_path))
 
-results_path = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful')
+results_path = os.path.join(os.getcwd(), 'results', 'chunk_'+DATASET)
 data_path = os.path.join(os.getcwd(), 'data')
 
 # Handling participant IDs
 ttf = pd.read_csv(os.path.join(data_path, 'TasksTimestamps.csv'))
 PIDS = list(ttf.StudyID.unique())
-pids_to_remove = ['HH-076']  # HH-076 being removed because the task timings are off compared to the video length
-PIDS.remove(pids_to_remove[0])
+
+if DATASET == 'webcam':
+    pids_to_remove = ['HH-076']  # HH-076 being removed because the task timings are off compared to the video length
+else:
+    pids_to_remove = ['EO-028', 'HI-045', 'EA-046', 'EL-114', 'ET-171']
+PIDS = [pid for pid in PIDS if pid not in pids_to_remove]
 
 
 def get_data(pids: list = PIDS, tasks: list or str = TASKS) -> dict:
     """
     function get_data --> reads the CSV files containing relevant data, based on the PIDs specified and the tasks
+    uses the constant DATASET to choose which dataset to pull data from. Possible datasets - Webcam, Tobii
     :param pids: list of participants to get the data for
     :param tasks: the tasks to get data for. Could be a single task (if tasks is string) or a list of tasks
     :return: dict "data" -> contains all the input data. First level is task, second level is each PID
@@ -98,25 +105,51 @@ def get_data(pids: list = PIDS, tasks: list or str = TASKS) -> dict:
     # initialize data
     data = {task: {pid: None for pid in pids} for task in tasks}
 
-    x_cols = ['gaze_0_x', 'gaze_0_y', 'gaze_0_z',
-              'gaze_1_x', 'gaze_1_y', 'gaze_1_z',
-              'gaze_avg_x', 'gaze_avg_y', 'gaze_avg_z']
+    if DATASET == 'webcam':
+        x_cols = ['gaze_0_x', 'gaze_0_y', 'gaze_0_z',
+                  'gaze_1_x', 'gaze_1_y', 'gaze_1_z',
+                  'gaze_avg_x', 'gaze_avg_y', 'gaze_avg_z']
 
-    if STRATEGY == 'left':
-        x_cols = x_cols[:3]
-    elif STRATEGY == 'right':
-        x_cols = x_cols[3:6]
-    elif STRATEGY == 'avg':
-        x_cols = x_cols[6:9]
-    elif STRATEGY == 'both_eyes':
-        x_cols = x_cols[:6]
+        if STRATEGY == 'left':
+            x_cols = x_cols[:3]
+        elif STRATEGY == 'right':
+            x_cols = x_cols[3:6]
+        elif STRATEGY == 'avg':
+            x_cols = x_cols[6:9]
+        elif STRATEGY == 'both_eyes':
+            x_cols = x_cols[:6]
 
-    for task in tqdm(tasks, 'getting task data'):
-        for pid in pids:
-            pid_save_path = os.path.join(data_path, 'LSTM_all', pid)
-            file = pd.read_csv(os.path.join(pid_save_path, task + '.csv'))
-            x = np.array(file[x_cols])
-            data[task][pid] = x
+        for task in tqdm(tasks, 'getting task data'):
+            for pid in pids:
+                pid_save_path = os.path.join(data_path, 'webcam_all', pid)
+                file = pd.read_csv(os.path.join(pid_save_path, task + '.csv'))
+                x = np.array(file[x_cols])
+                data[task][pid] = x
+
+    else:  # when DATASET == 'tobii'
+        x_cols = ['GazePointLeftX (ADCSpx)', 'GazePointLeftY (ADCSpx)',
+                  'GazePointRightX (ADCSpx)', 'GazePointRightY (ADCSpx)',
+                  'GazePointX (ADCSpx)', 'GazePointY (ADCSpx)',
+                  'PupilLeft', 'PupilRight',
+                  'ValidityLeft', 'ValidityRight']
+
+        if STRATEGY == 'left':
+            x_cols = x_cols[:2]
+        elif STRATEGY == 'right':
+            x_cols = x_cols[2:4]
+        elif STRATEGY == 'avg':
+            x_cols = x_cols[4:6]
+        elif STRATEGY == 'both_eyes':
+            x_cols = x_cols[:4]
+        elif STRATEGY == 'all':
+            x_cols = x_cols[:6]
+
+        for task in tqdm(tasks, 'getting tobii task data'):
+            for pid in pids:
+                pid_save_path = os.path.join(data_path, 'Tobii_all', pid)
+                file = pd.read_csv(os.path.join(pid_save_path, task+'.csv'))
+                x = np.array(file[x_cols])
+                data[task][pid] = x
 
     return data
 
@@ -141,11 +174,15 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
                              'count': None, '90%ile': None, '95%ile': None}
                       for task in TASKS}
 
+    task_lengths = {}
+    new_task_lengths = {}
+
     # initializing the DataFrame
     new_pids = pd.DataFrame(columns=['PID', 'len', 'task'])
     for task in TASKS:
         lens = np.array([[pid, len(data[task][pid])] for pid in PIDS], dtype='object')
         counts = lens[:, 1]
+        task_lengths[task] = counts
         lens_df = pd.DataFrame(lens, columns=['PID', 'len'])
         lens_df['task'] = task
 
@@ -160,13 +197,18 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
         task_stats[task]['90%ile'] = np.percentile(counts, 90)
         task_stats[task]['95%ile'] = np.percentile(counts, 95)
 
+
         # set lower and upper limits
         l_0 = 0
         u_90 = np.percentile(counts, percentile_threshold)
 
         # split participants based on the limits --> within the limits are acceptable, out of the limits are outliers
-        new_lens = lens_df[(lens_df.len < u_90) & (lens_df.len > l_0)]
+        new_lens = lens_df[(lens_df.len <= u_90) & (lens_df.len >= l_0)]
         new_counts = new_lens.len
+
+        # only for 90%ile plotting
+        ninety_perc_counts = lens_df[(lens_df.len <= np.percentile(counts, 90)) & (lens_df.len >= l_0)].len
+        new_task_lengths[task] = ninety_perc_counts
 
         # Statistics after removing outliers
         new_task_stats[task]['count'] = len(new_counts)
@@ -184,53 +226,53 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
     # Execute this if you want to save the statistics, by default its false
     if save_stats:
         stats = pd.DataFrame(task_stats).transpose()
-        stats.to_csv(os.path.join('stats', 'LSTM', 'task_info', 'more_pids_task_stats.csv'))
+        stats.to_csv(os.path.join('stats', DATASET, 'task_info', 'more_pids_task_stats.csv'))
         new_stats = pd.DataFrame(new_task_stats).transpose()
-        new_stats.to_csv(os.path.join('stats', 'LSTM', 'task_info', 'outliers_removed_more_pids_task_stats.csv'))
+        new_stats.to_csv(os.path.join('stats', DATASET, 'task_info', 'outliers_removed_more_pids_task_stats.csv'))
+
+        for task in TASKS:
+            plt.figure()
+            plt.title(task + ' Tobii sequence length distribution')
+            plt.xlabel('length of sequence')
+            plt.ylabel('number of participants')
+            plt.hist(task_lengths[task], bins=50)
+            plt.savefig(os.path.join('stats', DATASET, 'task_info', 'Participant_dist_'+task+'.png'))
+
+            plt.figure()
+            plt.title(task + ' Tobii seq. len dist - 90%ile outliers removed')
+            plt.xlabel('length of sequence')
+            plt.ylabel('number of participants')
+            plt.hist(new_task_lengths[task], bins=50)
+            plt.savefig(os.path.join('stats', DATASET, 'task_info', 'outlier_removed_seq_dist_' + task + '.png'))
+
 
     return new_pids
 
 
-def subset_data(x_train, x_test, x_val, strategy):
+def tobii_cyclical_split(x, y, pids, n_splits=15):
     """
-    function subset_data --> given train, test and validation inputs, create subsets based on the strategy required
-    :param x_train:
-    :param x_test:
-    :param x_val:
-    :param strategy: the data subset strategy used, depending on the strategy, combine the columns of the data
-    :return:
+    function tobii_cyclical_split --> function to split tobii sequences cyclically, and repeating participants
+    within a set. Will only be called inside CrossValidator, for Tobii Dataset. Result is reshaped np arrays, with
+    x shape changing from (x0, x1, x2) to (x0*n_splits, x1//n_splits, x2). y and pids will get repeated n_splits times.
+    :param x: x
+    :param y: y
+    :param pids: pids
+    :param n_splits: number of splits required. default is 15, since x_train had size 15900 after 90%ile length reduction
     """
-    fold_train = fold_test = fold_val = None
-    if strategy == 'left':
-        fold_train = np.array([x_train[i][:, :3] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, :3] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, :3] for j in range(len(x_val))]) if x_val is not None else None
+    new_x = []
+    new_y = []
+    new_pids = []
+    for p in range(x.shape[0]):
+        for i in range(n_splits):
+            new_x.append(x[p][i::n_splits])
+            new_y.append(y[p])
+            new_pids.append(pids[p])
 
-    elif strategy == 'right':
-        fold_train = np.array([x_train[i][:, 3:6] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, 3:6] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, 3:6] for j in range(len(x_val))]) if x_val is not None else None
+    new_x = np.array(new_x)
+    new_y = np.array(new_y)
+    new_pids = np.array(new_pids)
 
-    elif strategy == 'average':
-        fold_train = np.array([np.mean((x_train[i][:, :3], x_train[i][:, 3:6]), axis=0) for i in range(len(x_train))])
-        fold_test = np.array([np.mean((x_test[i][:, :3], x_test[i][:, 3:6]), axis=0) for i in range(len(x_test))])
-        fold_val = np.array([np.mean((x_val[i][:, :3], x_val[i][:, 3:6]), axis=0) for i in
-                             range(len(x_val))]) if x_val is not None else None
-
-    elif strategy == 'both_eyes':
-        fold_train = np.array([x_train[i][:, :6] for i in range(len(x_train))])
-        fold_test = np.array([x_test[j][:, :6] for j in range(len(x_test))])
-        fold_val = np.array([x_val[j][:, :6] for j in range(len(x_val))]) if x_val is not None else None
-
-    elif strategy == 'all':
-        both_train, both_test, both_val = subset_data(x_train, x_test, x_val, 'both_eyes')
-        avg_train, avg_test, avg_val = subset_data(x_train, x_test, x_val, 'average')
-        fold_train = np.array([np.hstack((both_train[i], avg_train[i])) for i in range(len(both_train))])
-        fold_test = np.array([np.hstack((both_test[i], avg_test[i])) for i in range(len(both_test))])
-        fold_val = np.array(
-            [np.hstack((both_val[i], avg_val[i])) for i in range(len(both_val))]) if x_val is not None else None
-
-    return fold_train, fold_test, fold_val
+    return new_x, new_y, new_pids
 
 
 class Preprocess:
@@ -609,6 +651,12 @@ def cross_validate(task, data, seed):
             y_val = np.array([[[1, 0] if pid.startswith('E') else [0, 1]][0] for pid in val_splits[fold]])
             pids_val = np.array(val_splits[fold])
 
+        if DATASET == 'tobii':
+            # cyclical split required
+            x_train, y_train, pids_train = tobii_cyclical_split(x_train, y_train, pids_train)
+            x_test, y_test, pids_test = tobii_cyclical_split(x_test, y_test, pids_test)
+            x_val, y_val, pids_val = tobii_cyclical_split(x_val, y_val, pids_val)
+
         # dividing sequences into batches
         """
         specifying BATCH_SIZE groups BATCH_SIZE number of sequences together into 1 batch
@@ -654,10 +702,10 @@ def cross_validate(task, data, seed):
 
 # save results function
 def save_results(task, saved_metrics, pred_probs, seed=None):
-    models_folder = os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME, 'torch_params')
+    models_folder = os.path.join(os.getcwd(), 'models', 'chunk_'+DATASET, OUTPUT_FOLDERNAME, 'torch_params')
     ParamsHandler.save_parameters(TORCH_PARAMS, models_folder)
 
-    output_folder = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful', OUTPUT_FOLDERNAME)
+    output_folder = os.path.join(os.getcwd(), 'results', 'chunk_'+DATASET, OUTPUT_FOLDERNAME)
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
     shutil.copy(os.path.join(os.getcwd(), 'params', 'torch_params.yaml'), output_folder)
@@ -723,19 +771,19 @@ def main():
             cross_validate(task, processed_data, seed)
 
     # average results across seeds and place it in a CSV file
-    ResultsHandler.compile_results(os.path.join('LSTM', 'stateful'), OUTPUT_FOLDERNAME)
+    ResultsHandler.compile_results('chunk_'+DATASET, OUTPUT_FOLDERNAME)
 
 
 if __name__ == '__main__':
     main()
 
-# Extra function
+# Extra functions
 """
 def process_input_data_into_all_strategy():
     for task in TASKS:
         for pid in PIDS:
             pid_path = os.path.join(data_path, 'LSTM', pid)
-            pid_save_path = os.path.join(data_path, 'LSTM_all', pid)
+            pid_save_path = os.path.join(data_path, 'webcam_all', pid)
             if not os.path.exists(pid_save_path):
                 os.mkdir(pid_save_path)
 
@@ -750,3 +798,119 @@ def process_input_data_into_all_strategy():
             new_df = pd.concat((df, avg_df), axis=1)
             new_df.to_csv(os.path.join(pid_save_path, task + '.csv'), index=False)
 """
+
+'''
+def process_tobii_data_into_tasks_all_strategy():
+    pids_to_skip = []
+    for task in TASKS:
+        for pid in PIDS:
+            pid_path = os.path.join(data_path, 'eye_movement')
+            pid_save_path = os.path.join(data_path, 'Tobii_all', pid)
+            if not os.path.exists(pid_save_path):
+                os.mkdir(pid_save_path)
+
+            # if file has already been saved, skip PID
+            if os.path.exists(os.path.join(pid_save_path, task+'.csv')):
+                continue
+
+            filepath = os.path.join(pid_path, 'Gaze_' + pid + '.tsv')
+            file = pd.read_csv(filepath, sep='\t')
+            x_cols = ['GazePointLeftX (ADCSpx)', 'GazePointLeftY (ADCSpx)',
+                      'GazePointRightX (ADCSpx)', 'GazePointRightY (ADCSpx)',
+                      'GazePointX (ADCSpx)', 'GazePointY (ADCSpx)',
+                      'PupilLeft', 'PupilRight',
+                      'ValidityLeft', 'ValidityRight']
+
+            task_start = ttf[(ttf.StudyID == pid) & (ttf.Task == task)].timestampIni.iat[0]
+            task_end = ttf[(ttf.StudyID == pid) & (ttf.Task == task)].timestampEnd.iat[0]
+            within_task_data = file[file.RecordingTimestamp.between(task_start+1, task_end-1)]
+            df = within_task_data[x_cols]
+
+            """
+            Code from Shane for pre-processing Tobii raw data
+            """
+            # percentage of invalid rows in dataset for this PID and task - from Shane
+            num_invalid = df[(df['ValidityLeft'] == 4.0) & (df['ValidityRight'] == 4.0)].shape[0]
+            total_rows = df.shape[0]
+            if total_rows == 0:
+                pids_to_skip.append(pid)
+            perc_invalid = num_invalid / total_rows
+
+            # fix_missing_eye - if one eye is invalid, but the other is valid, then copy valid values into invalid eye
+            x = df.values
+            i_left = (x[:, 8] == 4.0) & (x[:, 9] == 0.0)  # get indicies of rows with ValidityLeft = 4.0 (invalid)
+            i_right = (x[:, 8] == 0.0) & (x[:, 9] == 4.0)  # get indicies of rows with ValidityRight = 4.0 (invalid)
+
+            # fixing gazepoint values
+            x[i_left, 0:2] = x[i_left, 2:4]
+            x[i_right, 2:4] = x[i_right, 0:2]
+
+            # fixing pupil values
+            x[i_left, 6] = x[i_left, 7]
+            x[i_right, 7] = x[i_right, 6]
+
+            # fixing validity values
+            x[i_left, 8] = x[i_left, 9]
+            x[i_right, 9] = x[i_right, 8]
+
+            df = pd.DataFrame(x)
+
+            # fix invalid_rows - if both eyes are invalid, put -1.0 everywhere
+            x = df.values
+            i_left = (x[:, 8] == 4.0)  # get indicies of rows with ValidityLeft = 4.0 (invalid)
+            i_right = (x[:, 9] == 4.0)  # get indicies of rows with ValidityRight = 4.0 (invalid)
+            x[i_left] = -1.0
+            x[i_right] = -1.0
+
+            df = pd.DataFrame(x, columns=x_cols)
+            df.to_csv(os.path.join(pid_save_path, task+'.csv'), index=False)
+
+            """
+            Note: Found PIDS = ['EO-028', 'HI-045', 'EA-046', 'EL-114', 'ET-171'] as outliers
+            They either don't have any data in their files, or the files have only the keypoints (when space was pressed
+            to advance to the next task) and no data in between keypoints. 
+            """
+'''
+
+'''
+def subset_data(x_train, x_test, x_val, strategy):
+    """
+    function subset_data --> given train, test and validation inputs, create subsets based on the strategy required
+    :param x_train:
+    :param x_test:
+    :param x_val:
+    :param strategy: the data subset strategy used, depending on the strategy, combine the columns of the data
+    :return:
+    """
+    fold_train = fold_test = fold_val = None
+    if strategy == 'left':
+        fold_train = np.array([x_train[i][:, :3] for i in range(len(x_train))])
+        fold_test = np.array([x_test[j][:, :3] for j in range(len(x_test))])
+        fold_val = np.array([x_val[j][:, :3] for j in range(len(x_val))]) if x_val is not None else None
+
+    elif strategy == 'right':
+        fold_train = np.array([x_train[i][:, 3:6] for i in range(len(x_train))])
+        fold_test = np.array([x_test[j][:, 3:6] for j in range(len(x_test))])
+        fold_val = np.array([x_val[j][:, 3:6] for j in range(len(x_val))]) if x_val is not None else None
+
+    elif strategy == 'average':
+        fold_train = np.array([np.mean((x_train[i][:, :3], x_train[i][:, 3:6]), axis=0) for i in range(len(x_train))])
+        fold_test = np.array([np.mean((x_test[i][:, :3], x_test[i][:, 3:6]), axis=0) for i in range(len(x_test))])
+        fold_val = np.array([np.mean((x_val[i][:, :3], x_val[i][:, 3:6]), axis=0) for i in
+                             range(len(x_val))]) if x_val is not None else None
+
+    elif strategy == 'both_eyes':
+        fold_train = np.array([x_train[i][:, :6] for i in range(len(x_train))])
+        fold_test = np.array([x_test[j][:, :6] for j in range(len(x_test))])
+        fold_val = np.array([x_val[j][:, :6] for j in range(len(x_val))]) if x_val is not None else None
+
+    elif strategy == 'all':
+        both_train, both_test, both_val = subset_data(x_train, x_test, x_val, 'both_eyes')
+        avg_train, avg_test, avg_val = subset_data(x_train, x_test, x_val, 'average')
+        fold_train = np.array([np.hstack((both_train[i], avg_train[i])) for i in range(len(both_train))])
+        fold_test = np.array([np.hstack((both_test[i], avg_test[i])) for i in range(len(both_test))])
+        fold_val = np.array(
+            [np.hstack((both_val[i], avg_val[i])) for i in range(len(both_val))]) if x_val is not None else None
+
+    return fold_train, fold_test, fold_val
+'''
