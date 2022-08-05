@@ -39,4 +39,5 @@ num_layers: 2
 dropout: 0.05
 
 # mapping between input size for neural network with the strategy (in subsets)
-data_dim_dict: {'left': 3, 'right': 3, 'both_eyes': 6, 'average': 3, 'all': 9}
+data_dim_dict: {'webcam': {'left': 3, 'right': 3, 'both_eyes': 6, 'average': 3, 'all': 9},
+  'tobii': {'left': 2, 'right': 2, 'both_eyes': 4, 'average': 2, 'all': 6}}

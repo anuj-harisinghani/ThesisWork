@@ -37,7 +37,7 @@ TASKS = torch_params['tasks']
 DATASET = torch_params['dataset']
 STRATEGY = torch_params['strategy']
 OUTPUT_FOLDERNAME = torch_params['output_foldername']
-DATA_DIM_DICT = torch_params['data_dim_dict']
+DATA_DIM_DICT = torch_params['data_dim_dict'][DATASET]
 
 # Data pre-processing params
 OUTLIER_THRESHOLD = torch_params['outlier_threshold']
@@ -262,9 +262,10 @@ def tobii_cyclical_split(x, y, pids, n_splits):
     new_x = []
     new_y = []
     new_pids = []
-    for p in range(x.shape[0]):
-        for i in range(n_splits):
-            new_x.append(x[p][i::n_splits])
+
+    for n in range(n_splits):
+        for p in range(x.shape[0]):
+            new_x.append(x[p][n::n_splits])
             new_y.append(y[p])
             new_pids.append(pids[p])
 
@@ -320,10 +321,17 @@ class Preprocess:
         return truncated_data
 
 
-def make_batches(x, y, batch_size=None):
+def make_batches(x, y, batch_size=None, shuffle=False):
+
     num_batches = x.shape[0] // batch_size if batch_size is not None else 1
-    x_batched = np.array(np.split(x, num_batches, axis=0))
-    y_batched = np.array(np.split(y, num_batches, axis=0))
+    x_batched = None
+    y_batched = None
+    if shuffle:
+        pass
+
+    else:
+        x_batched = np.array(np.split(x, num_batches, axis=0))
+        y_batched = np.array(np.split(y, num_batches, axis=0))
 
     return x_batched, y_batched, num_batches
 
@@ -340,7 +348,8 @@ def compute_batch_accuracy(o: torch.Tensor, y: torch.Tensor) -> float:
     """
     preds = np.argmax(o.detach().cpu().numpy(), axis=1)
     y_true = np.argmax(y.detach().cpu().numpy(), axis=1)
-    wrongs, rights = np.bincount(preds == y_true)
+    rights = np.count_nonzero(preds == y_true)
+    wrongs = len(preds == y_true) - rights
     accuracy = rights / (rights + wrongs)
     return accuracy
 
@@ -476,6 +485,7 @@ def train(network: torch.nn.Module,
                 # Backpropagate
                 loss.backward(retain_graph=True)
                 loss_value = loss.item()
+                print(division, o.shape, y.shape)
                 batch_accuracy = compute_batch_accuracy(o, y)
 
                 if np.isnan(loss_value):
@@ -551,8 +561,8 @@ def evaluate(network: torch.nn.Module,
             # yhat_probs = torch.sigmoid(o).detach().cpu().numpy().tolist()
             yhat_probs = torch.softmax(o, dim=1).detach().cpu().numpy()
 
-            for i in range(len(pids_test)):
-                pred_probs[pids_test[i]] = yhat_probs[i]
+            # for i in range(len(pids_test)):
+            #     pred_probs[pids_test[i]] = yhat_probs[i]
 
             # Store all validation loss and accuracy values for computing avg
             loss += [loss_value]
@@ -665,6 +675,7 @@ def cross_validate(task, data, seed):
         techically, BATCH_SIZE = None has the same effect as BATCH_SIZE = len(x_train)
         num_batches will be 1 in this case
         """
+        BATCH_SIZE = cyclical_splits
         x_train, y_train, num_train = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
         x_test, y_test, num_test = make_batches(x_test, y_test, batch_size=BATCH_SIZE)
         x_val, y_val, num_val = make_batches(x_val, y_val, batch_size=BATCH_SIZE)
@@ -761,15 +772,15 @@ def main():
         task_90_perc_length = round(np.percentile(task_info.len, 90))     # this is used to keep 100% PIDs, but truncate everything to 90% ile length
 
         task_data = get_data(task_pids, task)[task]
-        processed_data = Preprocess(task_90_perc_length, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=True).pad_and_truncate(
-            task_data)
+        data = Preprocess(task_90_perc_length, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=True).\
+            pad_and_truncate(task_data)
 
-        # processed_data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=False).pad_and_truncate(
-        #     task_data)
+        # data = Preprocess(FINAL_LENGTH, PAD_WHERE, TRUNCATE_WHERE, chunk_compatible=False).
+        # pad_and_truncate(task_data)
 
         print('SEEDS are ', SEEDS)
         for seed in SEEDS:
-            cross_validate(task, processed_data, seed)
+            cross_validate(task, data, seed)
 
     # average results across seeds and place it in a CSV file
     ResultsHandler.compile_results('chunk_'+DATASET, OUTPUT_FOLDERNAME)
