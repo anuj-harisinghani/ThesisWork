@@ -367,6 +367,12 @@ def compute_metrics(y_true: np.array, y_pred: np.array) -> dict:
     # specificity = recall_score(y_true, y_pred, pos_label=0)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
+    try:
+        roc_auc_score(y_true, y_pred)
+    except ValueError:
+        print('y_true', np.bincount(np.array(y_true, dtype=int)))
+        return {}
+
     return {
         "roc": roc_auc_score(y_true, y_pred),
         "acc": accuracy_score(y_true, y_pred),
@@ -454,7 +460,7 @@ def train(network: torch.nn.Module,
         network = network.train()
         train_loss, train_accuracy = [], []
 
-        for batch_num in range(num_train):
+        for batch_num in tqdm(range(num_train), desc='epoch: ' + str(epoch)):
             # Zero out all the gradients
             optimizer.zero_grad()
 
@@ -485,11 +491,10 @@ def train(network: torch.nn.Module,
                 # Backpropagate
                 loss.backward(retain_graph=True)
                 loss_value = loss.item()
-                print(division, o.shape, y.shape)
                 batch_accuracy = compute_batch_accuracy(o, y)
 
                 if np.isnan(loss_value):
-                    print('loss value is nan at ', epoch, division, loss_value)
+                    print('loss value is nan at ', epoch, batch_num, division, loss_value)
 
             # Store all training loss and accuracy for computing avg
             optimizer.step()
@@ -543,6 +548,9 @@ def evaluate(network: torch.nn.Module,
     preds = {}
     pred_probs = {}
 
+    metric_names = ['roc', 'acc', 'f1', 'prec', 'recall', 'spec', 'tp', 'fp', 'fn', 'tn', 'loss', 'avg_batch_acc']
+    batch_metrics = {metric: [] for metric in metric_names}
+
     with torch.no_grad():
         for num in range(num_test):
             x = torch.from_numpy(x_test[num]).float().to(DEVICE)
@@ -569,35 +577,41 @@ def evaluate(network: torch.nn.Module,
             accuracy += [batch_accuracy]
 
             # Store predicted scores and ground truth labels
-            y_scores += torch.exp(o).detach().cpu().numpy().tolist()
-            y_true += y.cpu().numpy().tolist()
+            y_scores = torch.exp(o).detach().cpu().numpy().tolist()
+            y_true = y_test[num].tolist()
 
             y_scores, y_true = np.array(y_scores).reshape((len(y_scores), 2)), np.array(y_true)
 
-    # Compute predicted labels based on the optimal ROC threshold
-    """
-    This is where I changed the threshold calculation. If given a threshold, that would be used.
-    For training, validation and testing I have chosen to send in the pre_trained_threshold as 0.5 (check CV function)
-    So, always 0.5 will be used. But anything can be sent if required. Or calculated on the spot. (extra functionalities)
-    """
-    if pre_trained_threshold:
-        threshold = pre_trained_threshold
-        # print('using pre_trained_threshold, this is test set')
-    else:
-        # threshold = compute_optimal_roc_threshold(y_true[:, 0], y_scores[:, 0])  # check if results change if there is no threshold
-        threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])
-        # print('computing optimal threshold, this is validation set')
+            # Compute predicted labels based on the optimal ROC threshold
+            """
+            This is where I changed the threshold calculation. If given a threshold, that would be used.
+            For training, validation and testing I have chosen to send in the pre_trained_threshold as 0.5 (check CV function)
+            So, always 0.5 will be used. But anything can be sent if required. Or calculated on the spot. (extra functionalities)
+            """
+            if pre_trained_threshold:
+                threshold = pre_trained_threshold
+                # print('using pre_trained_threshold, this is test set')
+            else:
+                # threshold = compute_optimal_roc_threshold(y_true[:, 0], y_scores[:, 0])  # check if results change if there is no threshold
+                threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])
+                # print('computing optimal threshold, this is validation set')
 
-    # y_pred = np.array(y_scores[:, 0] >= threshold, dtype=int)
-    y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
+            # y_pred = np.array(y_scores[:, 0] >= threshold, dtype=int)
+            y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
 
-    # Compute the validation metrics
-    avg_loss, avg_accuracy = np.mean(loss), np.mean(accuracy)
-    metrics = compute_metrics(y_true[:, 0], y_pred)
-    metrics["loss"] = avg_loss
-    metrics["accuracy"] = avg_accuracy
+            # Compute the validation metrics
+            avg_loss, avg_accuracy = np.mean(loss), np.mean(accuracy)
+            metrics = compute_metrics(y_true[:, 0], y_pred)
+            metrics["loss"] = avg_loss
+            metrics["avg_batch_acc"] = avg_accuracy
 
-    return metrics, y_pred, pred_probs, threshold
+            for k in metric_names:
+                batch_metrics[k] += [metrics[k]]
+
+    for k in metric_names:
+        batch_metrics[k] = np.mean(batch_metrics[k])
+
+    return batch_metrics, y_pred, pred_probs, threshold
 
 
 """# Cross Validation"""
@@ -664,6 +678,7 @@ def cross_validate(task, data, seed):
         if DATASET == 'tobii':
             # cyclical split required
             cyclical_splits = 15 if task == 'CookieTheft' else 10
+            BATCH_SIZE = cyclical_splits
             x_train, y_train, pids_train = tobii_cyclical_split(x_train, y_train, pids_train, cyclical_splits)
             x_test, y_test, pids_test = tobii_cyclical_split(x_test, y_test, pids_test, cyclical_splits)
             x_val, y_val, pids_val = tobii_cyclical_split(x_val, y_val, pids_val, cyclical_splits)
@@ -675,7 +690,6 @@ def cross_validate(task, data, seed):
         techically, BATCH_SIZE = None has the same effect as BATCH_SIZE = len(x_train)
         num_batches will be 1 in this case
         """
-        BATCH_SIZE = cyclical_splits
         x_train, y_train, num_train = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
         x_test, y_test, num_test = make_batches(x_test, y_test, batch_size=BATCH_SIZE)
         x_val, y_val, num_val = make_batches(x_val, y_val, batch_size=BATCH_SIZE)
@@ -815,15 +829,15 @@ def process_input_data_into_all_strategy():
 def process_tobii_data_into_tasks_all_strategy():
     pids_to_skip = []
     for task in TASKS:
-        for pid in PIDS:
+        for pid in tqdm(PIDS):
             pid_path = os.path.join(data_path, 'eye_movement')
             pid_save_path = os.path.join(data_path, 'Tobii_all', pid)
             if not os.path.exists(pid_save_path):
                 os.mkdir(pid_save_path)
 
             # if file has already been saved, skip PID
-            if os.path.exists(os.path.join(pid_save_path, task+'.csv')):
-                continue
+            # if os.path.exists(os.path.join(pid_save_path, task+'.csv')):
+            #     continue
 
             filepath = os.path.join(pid_path, 'Gaze_' + pid + '.tsv')
             file = pd.read_csv(filepath, sep='\t')
@@ -874,7 +888,12 @@ def process_tobii_data_into_tasks_all_strategy():
             x[i_left] = -1.0
             x[i_right] = -1.0
 
+            # find nan values if there are any
+            nan_rows = np.where(np.isnan(x).all(axis=1))
+            for row in nan_rows:
+                x[row] = -1.0
             df = pd.DataFrame(x, columns=x_cols)
+            
             df.to_csv(os.path.join(pid_save_path, task+'.csv'), index=False)
 
             """
