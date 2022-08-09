@@ -1,14 +1,14 @@
 # Torch Params for PyTorch training
 
 # experiment params
-output_foldername: 'single_chunk_500_static_thresh_1_layer_100_ep'
+output_foldername: 'multi_chunk_static_threshold_100_chunk_canary_fusion'
 
 # Cross Validation params
 cluster: True
 seeds: 10
 folds: 10
 tasks: ['CookieTheft', 'Reading']
-dataset: 'tobii'  # 'webcam' or 'tobii'
+dataset: 'webcam'  # 'webcam' or 'tobii'
 subsets: ['left', 'right', 'both_eyes', 'average', 'all']
 strategy: 'all'
 

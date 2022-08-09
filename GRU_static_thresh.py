@@ -197,7 +197,6 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
         task_stats[task]['90%ile'] = np.percentile(counts, 90)
         task_stats[task]['95%ile'] = np.percentile(counts, 95)
 
-
         # set lower and upper limits
         l_0 = 0
         u_90 = np.percentile(counts, percentile_threshold)
@@ -244,7 +243,6 @@ def remove_outliers(data, percentile_threshold=OUTLIER_THRESHOLD, save_stats=Fal
             plt.ylabel('number of participants')
             plt.hist(new_task_lengths[task], bins=50)
             plt.savefig(os.path.join('stats', DATASET, 'task_info', 'outlier_removed_seq_dist_' + task + '.png'))
-
 
     return new_pids
 
@@ -322,7 +320,6 @@ class Preprocess:
 
 
 def make_batches(x, y, batch_size=None, shuffle=False):
-
     num_batches = x.shape[0] // batch_size if batch_size is not None else 1
     x_batched = None
     y_batched = None
@@ -445,7 +442,6 @@ def train(network: torch.nn.Module,
           x_val: np.array, y_val: np.array, pids_val: np.array, num_val: int,
           criterion: Callable,
           fold: int) -> tuple:
-
     optimizer = torch.optim.Adam(network.parameters(), lr=LEARNING_RATE)
     best_val_loss = 1000.0
 
@@ -511,7 +507,8 @@ def train(network: torch.nn.Module,
             print("[ EPOCH {}/{} --> Avg train loss: {:.4f} - Avg train accuracy: {:.4f} ]".
                   format(epoch + 1, EPOCHS, avg_train_loss, avg_train_accuracy))
 
-        val_metrics, _, pred_probs, threshold = evaluate(network, x_val, y_val, pids_val, num_val, criterion, pre_trained_threshold=0.5)
+        val_metrics, _, pred_probs, threshold = evaluate(network, x_val, y_val, pids_val,
+                                                         num_val, criterion, pre_trained_threshold=0.5)
 
         # Update best model
         avg_val_loss = val_metrics["loss"]
@@ -539,7 +536,6 @@ def train(network: torch.nn.Module,
 def evaluate(network: torch.nn.Module,
              x_test: np.array, y_test: np.array, pids_test: np.array, num_test: int,
              criterion: torch.optim, pre_trained_threshold: float = None) -> tuple:
-
     network = network.eval()
 
     y_scores, y_true = [], []
@@ -569,8 +565,8 @@ def evaluate(network: torch.nn.Module,
             # yhat_probs = torch.sigmoid(o).detach().cpu().numpy().tolist()
             yhat_probs = torch.softmax(o, dim=1).detach().cpu().numpy()
 
-            # for i in range(len(pids_test)):
-            #     pred_probs[pids_test[i]] = yhat_probs[i]
+            for i in range(len(pids_test)):
+                pred_probs[pids_test[i]] = yhat_probs[i]
 
             # Store all validation loss and accuracy values for computing avg
             loss += [loss_value]
@@ -645,6 +641,10 @@ def cross_validate(task, data, seed):
                'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [],
                'n_train_hc': [], 'n_train_e': [], 'n_test_hc': [], 'n_test_e': [], 'n_val_hc': [], 'n_val_e': []}
 
+    # to keep final prediction probabilities across all folds
+    seed_pred_probs = {}
+    seed_preds = {}
+
     # going through all folds to create fold-specific train-test sets
     for fold in tqdm(range(NFOLDS), desc='seed: {} training'.format(seed)):
         # making train:test x, y, labels
@@ -716,13 +716,17 @@ def cross_validate(task, data, seed):
                                                                 criterion, pre_trained_threshold=0.5)
 
         # saving metrics
-        for metric in list(test_metrics.keys()):
-            if metric == 'loss' or metric == 'accuracy':
+        for m in list(test_metrics.keys()):
+            if m not in metrics.keys():
                 continue
-            metrics[metric].append(test_metrics[metric])
+            metrics[m].append(test_metrics[m])
+
+        # updating prediction probabilities for the seed
+        seed_pred_probs.update(fold_pred_probs)
+        seed_preds.update(fold_preds)
 
     # print('saving {} seed metrics'.format(seed))
-    save_results(task, [metrics], fold_pred_probs, seed=seed)
+    save_results(task, [metrics], seed_pred_probs, seed=seed)
     # return metrics
 
 
@@ -753,13 +757,77 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
         dfs += [data]
 
     df = pd.concat(dfs, axis=0, ignore_index=True)
+
+    # for writing prediction probabilities into a file
+    headers = ['model', 'PID', 'prob_0', 'prob_1', 'pred']
+    df_pred_probs = []
+    for pid in pred_probs.keys():
+        pid_vals = pred_probs[pid]
+        prob_0 = pid_vals[1]
+        prob_1 = pid_vals[0]
+        pred = prob_1 > 0.5
+        row = ['GRU', pid, prob_0, prob_1, pred]
+        df_pred_probs.append(row)
+
+    df_pred_probs = pd.DataFrame(df_pred_probs, columns=headers, index=None)
+
     print('saving result for specified seed, not iterated', seed)
     seed_path = os.path.join(output_folder, str(seed))
     if not os.path.exists(seed_path):
         os.mkdir(seed_path)
 
     df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
+    df_pred_probs.to_csv(os.path.join(seed_path, 'predictions_results_new_features_{}.csv'.
+                                      format(feature_set_names[task])), index=False)
     print('results saved for {}'.format(task))
+
+
+def average_pred_probs(gru_result_foldername=OUTPUT_FOLDERNAME):
+    """
+    function average_pred_probs --> takes in the seed path, and averages prediction probabilites from canary's language
+    predictions and the GRU predictions from this file. Webcam or Tobii. Happens after GRU has completed training and
+    evaluating, saves results
+    :param gru_result_foldername: foldername of the GRU results
+    """
+
+    GRU_result_path = os.path.join(results_path, gru_result_foldername)
+    canary_lang_path = os.path.join(os.getcwd(), 'results', 'canary_lang')
+    feature_set_names_eye = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
+    feature_set_names_lang = {'CookieTheft': 'Language', 'Reading': 'NLP_Reading', 'Memory': 'Audio'}
+
+    for seed in tqdm(range(SEEDS), desc='averaging GRU results with canary lang', disable=not VERBOSE):
+        GRU_seed_path = os.path.join(GRU_result_path, str(seed))
+        canary_seed_path = os.path.join(canary_lang_path, str(seed))
+
+        for task in TASKS:
+            filename_eye = 'predictions_results_new_features_{}.csv'.format(feature_set_names_eye[task])
+            filename_lang = 'predictions_results_new_features_{}.csv'.format(feature_set_names_lang[task])
+            GRU_seed_file = pd.read_csv(os.path.join(GRU_seed_path, filename_eye))
+            canary_lang_file = pd.read_csv(os.path.join(canary_seed_path, filename_lang))
+            cols = GRU_seed_file.columns
+
+            common_pids = np.intersect1d(GRU_seed_file.PID, canary_lang_file.PID)
+            canary_model = 'RandomForest'  # currently choosing RandomForest as the only model to average predictions with
+            canary_lang_data = canary_lang_file[canary_lang_file.model == canary_model]
+
+            averaged_df = []
+            for pid in common_pids:
+                GRU_pid_data = GRU_seed_file[GRU_seed_file.PID == pid]
+                canary_pid_data = canary_lang_data[canary_lang_data.PID == pid]
+                prob_0 = np.mean(canary_pid_data.prob_0, GRU_pid_data.prob_0)
+                prob_1 = np.mean(canary_pid_data.prob_1, GRU_pid_data.prob_1)
+                pred = prob_1 > 0.5
+                averaged_df.append(['Data_Ensemble_LF GRU-Lang', pid, prob_0, prob_1, pred])
+
+            averaged_df = pd.DataFrame(averaged_df, columns=cols)
+            averaged_save_path = os.path.join(os.getcwd(), 'results',
+                                              'chunk_webcam_canary_lang', gru_result_foldername+'_lang')
+            if not os.path.exists(averaged_save_path):
+                os.mkdir(averaged_save_path)
+            averaged_df.to_csv(os.path.join(averaged_save_path, '{}_{}.csv'.
+                                            format(gru_result_foldername, task)), index=False)
+
+
 
 
 def main():
@@ -770,8 +838,6 @@ def main():
         # after this, this variable SEEDS should not change
         SEEDS = np.arange(int(sys.argv[2]), int(sys.argv[3]))
         TASKS = [sys.argv[1]]
-
-    # print('doing this for only task', TASKS, type(TASKS))
 
     # getting data and removing outliers
     data = get_data()
@@ -797,7 +863,10 @@ def main():
             cross_validate(task, data, seed)
 
     # average results across seeds and place it in a CSV file
-    ResultsHandler.compile_results('chunk_'+DATASET, OUTPUT_FOLDERNAME)
+    ResultsHandler.compile_results('chunk_' + DATASET, OUTPUT_FOLDERNAME)
+
+    # average results of GRU predictions and Canary language results and save them
+    average_pred_probs()
 
 
 if __name__ == '__main__':
@@ -893,7 +962,7 @@ def process_tobii_data_into_tasks_all_strategy():
             for row in nan_rows:
                 x[row] = -1.0
             df = pd.DataFrame(x, columns=x_cols)
-            
+
             df.to_csv(os.path.join(pid_save_path, task+'.csv'), index=False)
 
             """
