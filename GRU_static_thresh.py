@@ -690,6 +690,7 @@ def cross_validate(task, data, seed):
         techically, BATCH_SIZE = None has the same effect as BATCH_SIZE = len(x_train)
         num_batches will be 1 in this case
         """
+        BATCH_SIZE = None
         x_train, y_train, num_train = make_batches(x_train, y_train, batch_size=BATCH_SIZE)
         x_test, y_test, num_test = make_batches(x_test, y_test, batch_size=BATCH_SIZE)
         x_val, y_val, num_val = make_batches(x_val, y_val, batch_size=BATCH_SIZE)
@@ -723,7 +724,7 @@ def cross_validate(task, data, seed):
 
         # updating prediction probabilities for the seed
         seed_pred_probs.update(fold_pred_probs)
-        seed_preds.update(fold_preds)
+        # seed_preds.update(fold_preds)
 
     # print('saving {} seed metrics'.format(seed))
     save_results(task, [metrics], seed_pred_probs, seed=seed)
@@ -743,7 +744,7 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
     metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']
     metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall',
-                    'specificity': 'spec', 'tp': 'tp', 'fp': 'fp', 'fn': 'fn', 'tn':'tn'}
+                    'specificity': 'spec', 'tp': 'tp', 'fp': 'fp', 'fn': 'fn', 'tn': 'tn'}
 
     seed_metrics = saved_metrics[0]
     dfs = []
