@@ -732,11 +732,13 @@ def cross_validate(task, data, seed):
 
 
 # save results function
-def save_results(task, saved_metrics, pred_probs, seed=None):
+def save_results(task, saved_metrics, pred_probs=None, seed=None, averaged_with_lang=False):
     models_folder = os.path.join(os.getcwd(), 'models', 'chunk_'+DATASET, OUTPUT_FOLDERNAME, 'torch_params')
     ParamsHandler.save_parameters(TORCH_PARAMS, models_folder)
 
-    output_folder = os.path.join(os.getcwd(), 'results', 'chunk_'+DATASET, OUTPUT_FOLDERNAME)
+    output_folder = os.path.join(os.getcwd(), 'results', 'chunk_'+DATASET, OUTPUT_FOLDERNAME) if not averaged_with_lang \
+        else os.path.join(os.getcwd(), 'results', 'chunk_webcam_canary_lang', OUTPUT_FOLDERNAME+'_lang')
+
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
     shutil.copy(os.path.join(os.getcwd(), 'params', 'torch_params.yaml'), output_folder)
@@ -745,6 +747,11 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
     metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']
     metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall',
                     'specificity': 'spec', 'tp': 'tp', 'fp': 'fp', 'fn': 'fn', 'tn': 'tn'}
+
+    print('saving result for specified seed, not iterated', seed)
+    seed_path = os.path.join(output_folder, str(seed))
+    if not os.path.exists(seed_path):
+        os.mkdir(seed_path)
 
     seed_metrics = saved_metrics[0]
     dfs = []
@@ -758,28 +765,25 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
         dfs += [data]
 
     df = pd.concat(dfs, axis=0, ignore_index=True)
-
-    # for writing prediction probabilities into a file
-    headers = ['model', 'PID', 'prob_0', 'prob_1', 'pred']
-    df_pred_probs = []
-    for pid in pred_probs.keys():
-        pid_vals = pred_probs[pid]
-        prob_0 = pid_vals[1]
-        prob_1 = pid_vals[0]
-        pred = prob_1 > 0.5
-        row = ['GRU', pid, prob_0, prob_1, pred]
-        df_pred_probs.append(row)
-
-    df_pred_probs = pd.DataFrame(df_pred_probs, columns=headers, index=None)
-
-    print('saving result for specified seed, not iterated', seed)
-    seed_path = os.path.join(output_folder, str(seed))
-    if not os.path.exists(seed_path):
-        os.mkdir(seed_path)
-
     df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
-    df_pred_probs.to_csv(os.path.join(seed_path, 'predictions_results_new_features_{}.csv'.
-                                      format(feature_set_names[task])), index=False)
+
+    # only execute this if averaged_with_lang is False - average pred_probs will be written by average_results function
+    if not averaged_with_lang:
+        # for writing prediction probabilities into a file
+        headers = ['model', 'PID', 'prob_0', 'prob_1', 'pred']
+        df_pred_probs = []
+        for pid in pred_probs.keys():
+            pid_vals = pred_probs[pid]
+            prob_0 = pid_vals[1]
+            prob_1 = pid_vals[0]
+            pred = prob_1 > 0.5
+            row = ['GRU', pid, prob_0, prob_1, pred]
+            df_pred_probs.append(row)
+
+        df_pred_probs = pd.DataFrame(df_pred_probs, columns=headers, index=None)
+        df_pred_probs.to_csv(os.path.join(seed_path, 'predictions_results_new_features_{}.csv'.
+                                          format(feature_set_names[task])), index=False)
+
     print('results saved for {}'.format(task))
 
 
@@ -796,7 +800,7 @@ def average_pred_probs(gru_result_foldername=OUTPUT_FOLDERNAME):
     feature_set_names_eye = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
     feature_set_names_lang = {'CookieTheft': 'Language', 'Reading': 'NLP_Reading', 'Memory': 'Audio'}
 
-    for seed in tqdm(range(SEEDS), desc='averaging GRU results with canary lang', disable=not VERBOSE):
+    for seed in tqdm(SEEDS, desc='averaging GRU results with canary lang', disable=not VERBOSE):
         GRU_seed_path = os.path.join(GRU_result_path, str(seed))
         canary_seed_path = os.path.join(canary_lang_path, str(seed))
 
@@ -807,28 +811,71 @@ def average_pred_probs(gru_result_foldername=OUTPUT_FOLDERNAME):
             canary_lang_file = pd.read_csv(os.path.join(canary_seed_path, filename_lang))
             cols = GRU_seed_file.columns
 
-            common_pids = np.intersect1d(GRU_seed_file.PID, canary_lang_file.PID)
             canary_model = 'RandomForest'  # currently choosing RandomForest as the only model to average predictions with
             canary_lang_data = canary_lang_file[canary_lang_file.model == canary_model]
+            superset_pids = np.union1d(GRU_seed_file.PID, canary_lang_data.PID)
 
+            # using superset_pids to make averaged results - probabilities from each pid is averaged across all found
+            # instances. If PID in both sets (GRU and Canary lang, then average across 2, otherwise keep it the way it is)
             averaged_df = []
-            for pid in common_pids:
-                GRU_pid_data = GRU_seed_file[GRU_seed_file.PID == pid]
-                canary_pid_data = canary_lang_data[canary_lang_data.PID == pid]
-                prob_0 = np.mean(canary_pid_data.prob_0, GRU_pid_data.prob_0)
-                prob_1 = np.mean(canary_pid_data.prob_1, GRU_pid_data.prob_1)
-                pred = prob_1 > 0.5
+            for pid in superset_pids:
+                thingy = np.zeros(3)
+                if pid in list(GRU_seed_file.PID):
+                    GRU_pid_data = GRU_seed_file[GRU_seed_file.PID == pid]
+                    thingy[0] += GRU_pid_data.prob_0.iat[0]
+                    thingy[1] += GRU_pid_data.prob_1.iat[0]
+                    thingy[2] += 1
+
+                if pid in list(canary_lang_data.PID):
+                    canary_pid_data = canary_lang_data[canary_lang_data.PID == pid]
+                    thingy[0] += canary_pid_data.prob_0.iat[0]
+                    thingy[1] += canary_pid_data.prob_1.iat[0]
+                    thingy[2] += 1
+
+                prob_0 = thingy[0] / thingy[2]
+                prob_1 = thingy[1] / thingy[2]
+                pred = prob_1 > prob_0
                 averaged_df.append(['Data_Ensemble_LF GRU-Lang', pid, prob_0, prob_1, pred])
 
             averaged_df = pd.DataFrame(averaged_df, columns=cols)
             averaged_save_path = os.path.join(os.getcwd(), 'results',
                                               'chunk_webcam_canary_lang', gru_result_foldername+'_lang')
+
+            # recalculate metrics after doing averaging
+            recalculate_metrics_after_averaging(task, superset_pids, seed, averaged_df)
+
             if not os.path.exists(averaged_save_path):
                 os.mkdir(averaged_save_path)
-            averaged_df.to_csv(os.path.join(averaged_save_path, '{}_{}.csv'.
-                                            format(gru_result_foldername, task)), index=False)
+
+            averaged_seed_path = os.path.join(averaged_save_path, str(seed))
+            if not os.path.exists(averaged_seed_path):
+                os.mkdir(averaged_seed_path)
+
+            averaged_df.to_csv(os.path.join(averaged_seed_path, '{}_{}.csv'.
+                                            format('predictions_results_new_features', task)), index=False)
+
+    ResultsHandler.compile_results('chunk_webcam_canary_lang', OUTPUT_FOLDERNAME+'_lang')
 
 
+def recalculate_metrics_after_averaging(task: str, superset_pids: np.array, seed: int, averaged_df: pd.DataFrame):
+    superset_pids = list(superset_pids)
+    random.Random(seed).shuffle(superset_pids)
+    splits = np.array_split(superset_pids, 10)
+
+    metric_names = ['roc', 'acc', 'f1', 'prec', 'recall', 'spec', 'tp', 'fp', 'fn', 'tn']
+    seed_metrics = {metric: [] for metric in metric_names}
+
+    for i in splits:
+        split_data = averaged_df[averaged_df.PID.isin(i)]
+        pids_split = list(split_data.PID)
+        y_true_split = [1 if pid.startswith('E') else 0 for pid in pids_split]
+        y_pred_split = list(split_data.pred)
+
+        fold_metrics = compute_metrics(y_true_split, y_pred_split)
+        for k in metric_names:
+            seed_metrics[k] += [fold_metrics[k]]
+
+    save_results(task, [seed_metrics], seed=seed, averaged_with_lang=True)
 
 
 def main():
