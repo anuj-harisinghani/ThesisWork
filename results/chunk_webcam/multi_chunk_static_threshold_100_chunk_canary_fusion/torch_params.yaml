@@ -1,14 +1,14 @@
 # Torch Params for PyTorch training
 
 # experiment params
-output_foldername: 'multi_chunk_static_threshold_100_chunk_canary_fusion'
+output_foldername: 'single_chunk_500_static_thresh_1_layer_100_ep'
 
 # Cross Validation params
 cluster: True
 seeds: 10
 folds: 10
 tasks: ['CookieTheft', 'Reading']
-dataset: 'webcam'  # 'webcam' or 'tobii'
+dataset: 'tobii'  # 'webcam' or 'tobii'
 subsets: ['left', 'right', 'both_eyes', 'average', 'all']
 strategy: 'all'
 
@@ -17,7 +17,7 @@ outlier_threshold: 100  # try this with 100
 pad_where: 'post'  # 'pre'
 truncate_where: 'post'  # 'pre'
 final_length: 500  # if 0, then chooses median, will be overridden in stateful
-pad_val: 0
+pad_val: -1
 batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
 
 # training params

@@ -5,6 +5,7 @@ import sys
 import torch
 import math
 import random
+import shutil
 
 from typing import Callable
 from torch import nn
@@ -54,7 +55,7 @@ VERBOSE = torch_params['verbose']
 
 # Neural Network Params
 NN_TYPE = torch_params['network_type']
-INPUT_SIZE = DATA_DIM_DICT[STRATEGY]
+INPUT_SIZE = DATA_DIM_DICT['webcam'][STRATEGY]
 # INPUT_SIZE = torch_params['input_size']
 OUTPUT_SIZE = torch_params['output_size']
 HIDDEN_SIZE = torch_params['hidden_size']
@@ -64,7 +65,7 @@ DROPOUT = torch_params['dropout']
 
 # if OUTPUT_FOLDERNAME is set as None in the params file, then create a name based on other parameters
 if not OUTPUT_FOLDERNAME:
-    OUTPUT_FOLDERNAME = 'full_CV_torch_with_static_half_threshold'. \
+    OUTPUT_FOLDERNAME = 'full_CV_torch_with_static_half_threshold_3'. \
         format(NN_TYPE, NUM_LAYERS, LEARNING_RATE, DROPOUT, CHUNK_LEN)
 
 # Handle paths for reading data and saving information
@@ -112,7 +113,7 @@ def get_data(pids: list = PIDS, tasks: list or str = TASKS) -> dict:
 
     for task in tqdm(tasks, 'getting task data'):
         for pid in pids:
-            pid_save_path = os.path.join(data_path, 'LSTM_all', pid)
+            pid_save_path = os.path.join(data_path, 'webcam_all', pid)
             file = pd.read_csv(os.path.join(pid_save_path, task + '.csv'))
             x = np.array(file[x_cols])
             data[task][pid] = x
@@ -316,6 +317,12 @@ def compute_metrics(y_true: np.array, y_pred: np.array) -> dict:
     # specificity = recall_score(y_true, y_pred, pos_label=0)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
+    try:
+        roc_auc_score(y_true, y_pred)
+    except ValueError:
+        print('y_true', np.bincount(np.array(y_true, dtype=int)))
+        return {}
+
     return {
         "roc": roc_auc_score(y_true, y_pred),
         "acc": accuracy_score(y_true, y_pred),
@@ -323,6 +330,10 @@ def compute_metrics(y_true: np.array, y_pred: np.array) -> dict:
         "prec": precision_score(y_true, y_pred),
         "recall": recall_score(y_true, y_pred),
         "spec": tn / (tn + fp),
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn
         # "combined": (sensitivity + specificity) / 2,
     }
 
@@ -576,9 +587,12 @@ def cross_validate(task, data, seed):
             test_splits.append(splits[s])
             train_splits.append(np.array(pids)[~np.in1d(pids, splits[s])])
 
-    metrics = {'roc': [], 'acc': [], 'f1': [], 'prec': [], 'recall': [], 'spec': [],
+    metrics = {'roc': [], 'acc': [], 'f1': [], 'prec': [], 'recall': [], 'spec': [], 'tp': [], 'fp': [], 'fn': [],
+               'tn': [],
                'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [],
                'n_train_hc': [], 'n_train_e': [], 'n_test_hc': [], 'n_test_e': [], 'n_val_hc': [], 'n_val_e': []}
+
+    seed_pred_probs = {}
 
     # going through all folds to create fold-specific train-test sets
     for fold in tqdm(range(NFOLDS), desc='seed: {} training'.format(seed)):
@@ -648,24 +662,34 @@ def cross_validate(task, data, seed):
                 continue
             metrics[metric].append(test_metrics[metric])
 
+    seed_pred_probs.update(fold_pred_probs)
     # print('saving {} seed metrics'.format(seed))
-    save_results(task, [metrics], fold_pred_probs, seed=seed)
+    save_results(task, [metrics], seed_pred_probs, seed=seed)
     # return metrics
 
 
 # save results function
-def save_results(task, saved_metrics, pred_probs, seed=None):
+
+def save_results(task, saved_metrics, pred_probs=None, seed=None, averaged_with_lang=False):
     models_folder = os.path.join(os.getcwd(), 'models', OUTPUT_FOLDERNAME, 'torch_params')
     ParamsHandler.save_parameters(TORCH_PARAMS, models_folder)
 
-    output_folder = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful', OUTPUT_FOLDERNAME)
+    output_folder = os.path.join(os.getcwd(), 'results', 'LSTM', 'stateful', OUTPUT_FOLDERNAME) if not averaged_with_lang \
+        else os.path.join(os.getcwd(), 'results', 'chunk_webcam_canary_lang', OUTPUT_FOLDERNAME+'_lang')
+
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
+    shutil.copy(os.path.join(os.getcwd(), 'params', 'torch_params.yaml'), output_folder)
 
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
-    metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity']
+    metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']
     metric_names = {'acc': 'acc', 'roc': 'roc', 'fms': 'f1', 'precision': 'prec', 'recall': 'recall',
-                    'specificity': 'spec'}
+                    'specificity': 'spec', 'tp': 'tp', 'fp': 'fp', 'fn': 'fn', 'tn': 'tn'}
+
+    print('saving result for specified seed, not iterated', seed)
+    seed_path = os.path.join(output_folder, str(seed))
+    if not os.path.exists(seed_path):
+        os.mkdir(seed_path)
 
     seed_metrics = saved_metrics[0]
     dfs = []
@@ -674,17 +698,30 @@ def save_results(task, saved_metrics, pred_probs, seed=None):
         metric_data = seed_metrics[metric_name]
         data = pd.DataFrame(metric_data, columns=['1'])
         data['metric'] = metric
-        data['model'] = 'LSTM_median'
-        data['method'] = 'end_to_end'
+        data['model'] = 'GRU'
+        data['method'] = 'multi-chunk'
         dfs += [data]
 
     df = pd.concat(dfs, axis=0, ignore_index=True)
-    print('saving result for specified seed, not iterated', seed)
-    seed_path = os.path.join(output_folder, str(seed))
-    if not os.path.exists(seed_path):
-        os.mkdir(seed_path)
-
     df.to_csv(os.path.join(seed_path, 'results_new_features_{}.csv'.format(feature_set_names[task])), index=False)
+
+    # only execute this if averaged_with_lang is False - average pred_probs will be written by average_results function
+    if not averaged_with_lang:
+        # for writing prediction probabilities into a file
+        headers = ['model', 'PID', 'prob_0', 'prob_1', 'pred']
+        df_pred_probs = []
+        for pid in pred_probs.keys():
+            pid_vals = pred_probs[pid]
+            prob_0 = pid_vals[1]
+            prob_1 = pid_vals[0]
+            pred = prob_1 > 0.5
+            row = ['GRU', pid, prob_0, prob_1, pred]
+            df_pred_probs.append(row)
+
+        df_pred_probs = pd.DataFrame(df_pred_probs, columns=headers, index=None)
+        df_pred_probs.to_csv(os.path.join(seed_path, 'predictions_results_new_features_{}.csv'.
+                                          format(feature_set_names[task])), index=False)
+
     print('results saved for {}'.format(task))
 
 
