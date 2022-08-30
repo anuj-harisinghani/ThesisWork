@@ -1,0 +1,47 @@
+batch_size: null
+bidirectional: false
+chunk_len: 100
+cluster: true
+data_dim_dict:
+  tobii:
+    all: 6
+    average: 2
+    both_eyes: 4
+    left: 2
+    right: 2
+  webcam:
+    all: 9
+    average: 3
+    both_eyes: 6
+    left: 3
+    right: 3
+dataset: webcam
+dropout: 0.05
+epochs: 1000
+final_length: 500
+folds: 10
+hidden_size: 256
+input_size: 9
+learning_rate: 0.001
+multi_chunk: true
+network_type: GRU
+num_layers: 2
+outlier_threshold: 100
+output_foldername: multi_chunk_static_threshold_100_chunk_canary_fusion
+output_size: 2
+pad_val: -1
+pad_where: post
+seeds: 10
+strategy: all
+subsets:
+- left
+- right
+- both_eyes
+- average
+- all
+tasks:
+- CookieTheft
+- Reading
+truncate_where: post
+val_set: true
+verbose: false
