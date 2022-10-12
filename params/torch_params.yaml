@@ -1,7 +1,7 @@
 # Torch Params for PyTorch training
 
 # experiment params
-output_foldername: 'multi_chunk_static_threshold_100_chunk_canary_fusion'
+output_foldername: 'BAD_val_set_preds_minmax_scaled_pad_val_neg1'
 
 # Cross Validation params
 cluster: True

@@ -3,7 +3,7 @@
 0.631578947368421,acc,GRU,multi-chunk
 0.5263157894736842,acc,GRU,multi-chunk
 0.7368421052631579,acc,GRU,multi-chunk
-0.3684210526315789,acc,GRU,multi-chunk
+0.3157894736842105,acc,GRU,multi-chunk
 0.5263157894736842,acc,GRU,multi-chunk
 0.42105263157894735,acc,GRU,multi-chunk
 0.5263157894736842,acc,GRU,multi-chunk
@@ -13,7 +13,7 @@
 0.5795454545454545,roc,GRU,multi-chunk
 0.47435897435897434,roc,GRU,multi-chunk
 0.7045454545454545,roc,GRU,multi-chunk
-0.4107142857142857,roc,GRU,multi-chunk
+0.369047619047619,roc,GRU,multi-chunk
 0.5444444444444444,roc,GRU,multi-chunk
 0.3977272727272727,roc,GRU,multi-chunk
 0.71875,roc,GRU,multi-chunk
@@ -23,7 +23,7 @@
 0.36363636363636365,fms,GRU,multi-chunk
 0.30769230769230765,fms,GRU,multi-chunk
 0.6153846153846154,fms,GRU,multi-chunk
-0.4,fms,GRU,multi-chunk
+0.38095238095238093,fms,GRU,multi-chunk
 0.30769230769230765,fms,GRU,multi-chunk
 0.26666666666666666,fms,GRU,multi-chunk
 0.4,fms,GRU,multi-chunk
@@ -33,7 +33,7 @@
 0.6666666666666666,precision,GRU,multi-chunk
 0.2857142857142857,precision,GRU,multi-chunk
 0.8,precision,GRU,multi-chunk
-0.3076923076923077,precision,GRU,multi-chunk
+0.2857142857142857,precision,GRU,multi-chunk
 0.6666666666666666,precision,GRU,multi-chunk
 0.2857142857142857,precision,GRU,multi-chunk
 0.25,precision,GRU,multi-chunk
@@ -53,7 +53,7 @@
 0.9090909090909091,specificity,GRU,multi-chunk
 0.6153846153846154,specificity,GRU,multi-chunk
 0.9090909090909091,specificity,GRU,multi-chunk
-0.25,specificity,GRU,multi-chunk
+0.16666666666666666,specificity,GRU,multi-chunk
 0.8888888888888888,specificity,GRU,multi-chunk
 0.5454545454545454,specificity,GRU,multi-chunk
 0.4375,specificity,GRU,multi-chunk
@@ -73,7 +73,7 @@
 1.0,fp,GRU,multi-chunk
 5.0,fp,GRU,multi-chunk
 1.0,fp,GRU,multi-chunk
-9.0,fp,GRU,multi-chunk
+10.0,fp,GRU,multi-chunk
 1.0,fp,GRU,multi-chunk
 5.0,fp,GRU,multi-chunk
 9.0,fp,GRU,multi-chunk
@@ -93,7 +93,7 @@
 10.0,tn,GRU,multi-chunk
 8.0,tn,GRU,multi-chunk
 10.0,tn,GRU,multi-chunk
-3.0,tn,GRU,multi-chunk
+2.0,tn,GRU,multi-chunk
 8.0,tn,GRU,multi-chunk
 6.0,tn,GRU,multi-chunk
 7.0,tn,GRU,multi-chunk
