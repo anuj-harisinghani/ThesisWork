@@ -12,6 +12,7 @@ from typing import Callable
 from torch import nn
 from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, \
     precision_score, recall_score, confusion_matrix, roc_curve
+from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
 
 from ParamsHandler import ParamsHandler
@@ -300,6 +301,10 @@ class Preprocess:
             return np.append(padding, sequence, axis=0)
 
     def transform(self, sequence: np.array) -> np.array:
+        # scaling data values to [0,1]
+        scaler = MinMaxScaler()
+        sequence = scaler.fit_transform(sequence)
+
         # this happens when sequence is longer than the required length
         sequence = self.truncate(sequence)
 
@@ -457,7 +462,7 @@ def train(network: torch.nn.Module,
         network = network.train()
         train_loss, train_accuracy = [], []
 
-        for batch_num in tqdm(range(num_train), desc='epoch: ' + str(epoch)):
+        for batch_num in tqdm(range(num_train), desc='epoch: ' + str(epoch), disable=not VERBOSE):
             # Zero out all the gradients
             optimizer.zero_grad()
 
@@ -486,7 +491,7 @@ def train(network: torch.nn.Module,
                 loss = criterion(o, y)
 
                 # Backpropagate
-                loss.backward(retain_graph=True)
+                loss.backward()
                 loss_value = loss.item()
                 batch_accuracy = compute_batch_accuracy(o, y)
 
@@ -510,6 +515,9 @@ def train(network: torch.nn.Module,
 
         val_metrics, _, pred_probs, threshold = evaluate(network, x_val, y_val, pids_val,
                                                          num_val, criterion, pre_trained_threshold=0.5)
+
+        # val_metrics, _, pred_probs, threshold = evaluate_chunks(network, x_val, y_val, pids_val,
+        #                                                         num_val, criterion, pre_trained_threshold=0.5)
 
         # Update best model
         avg_val_loss = val_metrics["loss"]
@@ -595,6 +603,80 @@ def evaluate(network: torch.nn.Module,
                 # print('computing optimal threshold, this is validation set')
 
             # y_pred = np.array(y_scores[:, 0] >= threshold, dtype=int)
+            y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
+
+            # Compute the validation metrics
+            avg_loss, avg_accuracy = np.mean(loss), np.mean(accuracy)
+            metrics = compute_metrics(y_true[:, 0], y_pred)
+            metrics["loss"] = avg_loss
+            metrics["avg_batch_acc"] = avg_accuracy
+
+            for k in metric_names:
+                batch_metrics[k] += [metrics[k]]
+
+    for k in metric_names:
+        batch_metrics[k] = np.mean(batch_metrics[k])
+
+    return batch_metrics, y_pred, pred_probs, threshold
+
+
+def evaluate_chunks(network: torch.nn.Module,
+                    x_test: np.array, y_test: np.array, pids_test: np.array, num_test: int,
+                    criterion: torch.optim, pre_trained_threshold: float = None) -> tuple:
+    network = network.eval()
+
+    y_scores, y_true = [], []
+    loss, accuracy = [], []
+
+    preds = {}
+    pred_probs = {}
+
+    metric_names = ['roc', 'acc', 'f1', 'prec', 'recall', 'spec', 'tp', 'fp', 'fn', 'tn', 'loss', 'avg_batch_acc']
+    batch_metrics = {metric: [] for metric in metric_names}
+
+    with torch.no_grad():
+        for num in range(num_test):
+            num_divisions = x_test.shape[2] // CHUNK_LEN  # CHUNK_LEN
+            x_batch = x_test[num]
+            y_batch = y_test[num]
+            yhat_probs = []
+
+            for division in range(num_divisions):
+                x = torch.from_numpy(x_test[num]).float().to(DEVICE)
+                y = torch.from_numpy(y_test[num]).float().to(DEVICE)
+
+                # Initialize the hidden state of the RNN and move it to device
+                h = network.init_state(x.shape[0]).to(DEVICE)
+
+                # Predict
+                o, _ = network(x, h)
+                o = o.to(DEVICE)
+
+                loss_value = criterion(o, y).item()
+                batch_accuracy = compute_batch_accuracy(o, y)
+
+                yhat_probs_div = torch.softmax(o, dim=1).detach().cpu().numpy()
+                yhat_probs.append(yhat_probs_div)
+
+                # Store all validation loss and accuracy values for computing avg
+                loss += [loss_value]
+                accuracy += [batch_accuracy]
+
+            y_true = y_test[num].tolist()
+            y_scores, y_true = np.array(y_scores).reshape((len(y_scores), 2)), np.array(y_true)
+
+            # Averaging pred_probs across all divisions for a particular participant's sequence
+            yhat_probs = np.array(yhat_probs)
+            yhat_probs = np.mean(yhat_probs, axis=0)
+
+            for i in range(len(pids_test)):
+                pred_probs[pids_test[i]] = yhat_probs[i]
+
+            if pre_trained_threshold:
+                threshold = pre_trained_threshold
+            else:
+                threshold = compute_optimal_roc_threshold(y_true[:, 0], yhat_probs[:, 0])
+
             y_pred = np.array(yhat_probs[:, 0] >= threshold, dtype=int)
 
             # Compute the validation metrics
@@ -717,8 +799,9 @@ def cross_validate(task, data, seed):
         saved_model_fold_path = os.path.join(model_save_path,
                                              '{}_seed_{}_fold_{}_best_model.pth'.format(task, seed, fold))
         network.load_state_dict(torch.load(saved_model_fold_path))
-        # test_metrics, fold_preds, fold_pred_probs, _ = evaluate(network, x_test, y_test, pids_test, num_test,
-        #                                                         criterion, pre_trained_threshold=0.5)
+        # print('\nChunk eval ---------------------------------------------------------------------------')
+        # test_metrics, fold_preds, fold_pred_probs, _ = evaluate_chunks(network, x_test, y_test, pids_test, num_test,
+        #                                                                criterion, pre_trained_threshold=0.5)
 
         test_metrics, fold_preds, fold_pred_probs, _ = evaluate(network, x_val, y_val, pids_val, num_val,
                                                                 criterion, pre_trained_threshold=0.5)
@@ -750,7 +833,7 @@ def save_results(task, saved_metrics, pred_probs=None, seed=None, averaged_with_
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
     shutil.copy(os.path.join(os.getcwd(), 'params', 'torch_params.yaml'), output_folder)
-    shutil.copy(os.path.join(os.getcwd(), os.path.basename(__file__), output_folder))
+    shutil.copy(os.path.join(os.getcwd(), os.path.basename(__file__)), output_folder)
 
     feature_set_names = {'PupilCalib': 'ET_Basic', 'CookieTheft': 'Eye', 'Reading': 'Eye_Reading', 'Memory': 'Audio'}
     metrics = ['acc', 'roc', 'fms', 'precision', 'recall', 'specificity', 'tp', 'fp', 'fn', 'tn']

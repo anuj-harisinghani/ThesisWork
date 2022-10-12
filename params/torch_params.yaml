@@ -1,7 +1,7 @@
 # Torch Params for PyTorch training
 
 # experiment params
-output_foldername: 'multi_chunk_static_threshold_100_chunk_canary_fusion'
+output_foldername: 'BAD_val_set_preds_minmax_scaled_pad_val_neg1'
 
 # Cross Validation params
 cluster: True
@@ -17,7 +17,7 @@ outlier_threshold: 100  # try this with 100
 pad_where: 'post'  # 'pre'
 truncate_where: 'post'  # 'pre'
 final_length: 500  # if 0, then chooses median, will be overridden in stateful
-pad_val: 0
+pad_val: -1
 batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
 
 # training params
