@@ -1,0 +1,43 @@
+# Torch Params for PyTorch training
+
+# experiment params
+output_foldername: 'validation_set_metrics_0_pad_val_half_static_thresh'
+
+# Cross Validation params
+cluster: True
+seeds: 10
+folds: 10
+tasks: ['CookieTheft', 'Reading']
+dataset: 'webcam'  # 'webcam' or 'tobii'
+subsets: ['left', 'right', 'both_eyes', 'average', 'all']
+strategy: 'all'
+
+# data pre-processing params
+outlier_threshold: 100  # try this with 100
+pad_where: 'post'  # 'pre'
+truncate_where: 'post'  # 'pre'
+final_length: 500  # if 0, then chooses median, will be overridden in stateful
+pad_val: 0
+batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
+
+# training params
+val_set: True
+epochs: 1000
+learning_rate: 0.001
+chunk_len: 100
+multi_chunk: True
+verbose: False  # null or False displays nothing for training,
+  # 1 displays progress bars, 2 displays progress bars and training metrics for each epoch (looks messy)
+
+# neural network params
+network_type: 'GRU'
+input_size: 9
+output_size: 2
+hidden_size: 256
+bidirectional: False
+num_layers: 2
+dropout: 0.05
+
+# mapping between input size for neural network with the strategy (in subsets)
+data_dim_dict: {'webcam': {'left': 3, 'right': 3, 'both_eyes': 6, 'average': 3, 'all': 9},
+  'tobii': {'left': 2, 'right': 2, 'both_eyes': 4, 'average': 2, 'all': 6}}
