@@ -1,7 +1,7 @@
 # Torch Params for PyTorch training
 
 # experiment params
-output_foldername: 'BAD_val_set_preds_minmax_scaled_pad_val_neg1'
+output_foldername: 'nested_CV'
 
 # Cross Validation params
 cluster: True
@@ -14,18 +14,18 @@ strategy: 'all'
 
 # data pre-processing params
 outlier_threshold: 100  # try this with 100
-pad_where: 'post'  # 'pre'
+pad_where: 'None'  # 'pre'
 truncate_where: 'post'  # 'pre'
 final_length: 500  # if 0, then chooses median, will be overridden in stateful
 pad_val: -1
 batch_size: null  # if 0, chooses full number of sequences to become batch size, making number of batches = 1
 
 # training params
-val_set: True
-epochs: 1000
+val_set: False
+epochs: 500
 learning_rate: 0.001
 chunk_len: 100
-multi_chunk: True
+multi_chunk: False
 verbose: False  # null or False displays nothing for training,
   # 1 displays progress bars, 2 displays progress bars and training metrics for each epoch (looks messy)
 
@@ -33,10 +33,10 @@ verbose: False  # null or False displays nothing for training,
 network_type: 'GRU'
 input_size: 9
 output_size: 2
-hidden_size: 256
+hidden_size: 64  # overridden in Nested CV
 bidirectional: False
-num_layers: 2
-dropout: 0.05
+num_layers: 3  # overridden in Nested CV
+dropout: 0.1  # overridden in Nested CV
 
 # mapping between input size for neural network with the strategy (in subsets)
 data_dim_dict: {'webcam': {'left': 3, 'right': 3, 'both_eyes': 6, 'average': 3, 'all': 9},
