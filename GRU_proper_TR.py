@@ -481,7 +481,29 @@ class GRU2(nn.Module):
         @param h: hidden state of shape [num_layers (2x if bidirectional), batch_size, hidden_size]
         """
         o, h = self.gru(x, h)
-        return self.fc(o[:, -1, :]), h
+        # return self.fc(o[:, -1, :]), h    # check this! what are you returning here (a single value)
+        return self.fc(o[-1, :]), h  # this returns predictions for each timestep of the input sequence
+
+
+def weighted_average_early_loss(loss):
+    # print(loss.shape)
+    len_T = loss.shape[0]
+    early_loss = 0.0
+    for i in range(1, len_T):
+        # weight can be ((len_T-i) / len_T) if you want to put more weight on the losses closer to the final timestep
+        # otherwise, if you want to put equal weight on intermediate losses then just do (1/len_T) which Lipton recommends
+        weight = (1/len_T)  # ((len_T-i) / len_T)  # or (1/len_T)
+        early_loss += weight*loss[i]
+    return early_loss
+
+
+def TR_custom_loss(alpha):
+    def inner_loss(y_pred, y_true):
+        crit = nn.CrossEntropyLoss(reduce=False)
+        loss = crit(y_pred, y_true)  # this will be of shape (batch_size, timesteps) = (1, seq_len) for single sequence of length seq_len
+        # print('crit_loss', loss)
+        return alpha*weighted_average_early_loss(loss[:-1]) + (1-alpha)*loss[-1]
+    return inner_loss
 
 
 def train2(network: torch.nn.Module, epochs: int, lr: float,
@@ -506,7 +528,7 @@ def train2(network: torch.nn.Module, epochs: int, lr: float,
         network = network.train()
         train_loss, train_accuracy = [], []
 
-        for batch_num in tqdm(range(num_seq), desc='epoch: ' + str(epoch), disable=not VERBOSE):
+        for batch_num in tqdm(range(num_seq), desc='epoch: ' + str(epoch)):
             # print('batch_num = ', batch_num)
             # Zero out all the gradients
             optimizer.zero_grad()
@@ -515,13 +537,16 @@ def train2(network: torch.nn.Module, epochs: int, lr: float,
 
             batch_loss, batch_acc = [], []
 
-            x_batch = x_train[batch_num][None, :, :]
-            y_batch = y_train[batch_num][None, :]
+            x = x_train[batch_num][None, :, :]
+            seq_len = x.shape[1]
+            # y_batch = y_train[batch_num][None, :]
+            y = y_train[batch_num].repeat(seq_len, 1)
 
-            num_divisions = x_batch.shape[1] // CHUNK_LEN  # CHUNK_LEN
-            if x_batch.shape[1] % CHUNK_LEN != 0:
-                num_divisions += 1
+            # num_divisions = x_batch.shape[1] // CHUNK_LEN  # CHUNK_LEN
+            # if x_batch.shape[1] % CHUNK_LEN != 0:
+            #     num_divisions += 1
 
+            '''
             # print(x_batch.shape, num_divisions)
             for division in range(num_divisions):
                 # Move training inputs and labels to device
@@ -548,14 +573,28 @@ def train2(network: torch.nn.Module, epochs: int, lr: float,
                 if np.isnan(loss_value):
                     # print('loss value is nan at ', epoch, batch_num, division, loss_value)
                     break
+                    '''
+
+            x.requires_grad = True
+
+            # Predict
+            o, h = network(x, h)
+
+            # Compute loss
+            loss = criterion(o, y)
+
+            # backpropagate
+            loss.backward(retain_graph=True)
+            loss_value = loss.detach().item()
+            batch_accuracy = compute_batch_accuracy(o, y)
 
             # Store all training loss and accuracy for computing avg
             optimizer.step()
-            batch_loss += [loss_value]
-            batch_acc += [batch_accuracy]
+            # batch_loss += [loss_value]
+            # batch_acc += [batch_accuracy]
 
-        train_loss += [np.nanmean(batch_loss)]
-        train_accuracy += [np.nanmean(batch_acc)]
+            train_loss += [loss_value]
+            train_accuracy += [batch_accuracy]
 
         # Update model parameters
         avg_train_loss, avg_train_accuracy = np.nanmean(train_loss), np.nanmean(train_accuracy)
@@ -700,7 +739,9 @@ def inner_cv(task, n_inner_folds, data, fold_pids, outer_seed, combination):
 
         # initialize network with the given combination of hyparameters inside each fold
         net = GRU2(n_layers, n_hidden, dropout).float().to(DEVICE)
-        criterion = nn.CrossEntropyLoss()
+        # criterion = nn.CrossEntropyLoss()
+        alpha = 0.5
+        criterion = TR_custom_loss(alpha)
 
         # train the network on the inner train set, and validate with the inner validation set, get metrics
         best_net = train2(net, epochs, lr,
